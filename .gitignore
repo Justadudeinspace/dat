@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swo
+*.swp
+
+# Logs and outputs
+*.log
+audit*.txt
+
+# Dependency files
+pip-wheel-metadata/
+.python-version
+
+# Generated artifacts
+coverage/
+htmlcov/
