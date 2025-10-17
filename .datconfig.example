@@ -1,0 +1,31 @@
+# ===============================
+# dat - Dev Audit Tool Configuration
+# Copy this file to ~/.datconfig and edit as needed
+# ===============================
+
+[Settings]
+# Number of top files to display in summary (by lines and size)
+top_n = 5
+
+# Maximum lines per file to display in output
+max_lines = 1000
+
+# Maximum file size (bytes) to process
+max_size = 10485760  # 10 MB
+
+[FileTypes]
+# Extensions for documentation files
+doc_extensions = .md,.txt,.rst,.pdf,.doc,.docx,.odt,.tex,.rtf
+
+# Extensions for source code files
+code_extensions = .py,.js,.jsx,.java,.cpp,.c,.h,.hpp,.cs,.html,.htm,.css,.scss,.sass,.rb,.php,.go,.swift,.kt,.ts,.tsx,.rs,.sh,.bash,.zsh,.lua,.json,.xml,.yaml,.yml,.pl,.r,.dart,.m,.scala,.hs,.cob,.fs,.groovy,.vb,.tcl,.sql,.config,.ini,.toml,.cfg,.conf,.ps1,.bat,.cmd,.vbs,.asm,.s,.nim,.jl,.ex,.exs,.elm,.purs,.clj,.edn
+
+# Extensions for media files
+media_extensions = .jpg,.jpeg,.png,.gif,.bmp,.svg,.mp4,.avi,.mov,.mp3,.wav,.flac,.ogg,.webm,.mkv
+
+# ===============================
+# Notes:
+# - Lines starting with # are comments.
+# - Extensions should include the dot (.)
+# - You can add/remove extensions as needed.
+# ===============================

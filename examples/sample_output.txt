@@ -1,0 +1,107 @@
+============================================================
+                   D E V   A U D I T   T O O L
+============================================================
+
+Scanning path: ./project/
+Recursion: Enabled
+Hidden files: Included
+Max lines per file: 1000
+Max file size: 10 MB
+------------------------------------------------------------
+
+📂  DIRECTORY: ./project/src/
+------------------------------------------------------------
+# FILE: main.py (2.3 KB | 88 lines)
+
+  1 | import sys
+  2 | import os
+  3 |
+  4 | def main():
+  5 |     print("Hello, world from dat!")
+  6 |     ...
+ 87 | if __name__ == "__main__":
+ 88 |     main()
+
+------------------------------------------------------------
+# FILE: utils/helpers.py (5.4 KB | 162 lines)
+
+  1 | import json
+  2 | from datetime import datetime
+  3 |
+  4 | def read_config(path):
+  5 |     with open(path) as f:
+  6 |         return json.load(f)
+  7 |
+  8 | def summarize(data):
+  9 |     ...
+162 |     return summary
+
+------------------------------------------------------------
+📂  DIRECTORY: ./project/docs/
+------------------------------------------------------------
+# FILE: README.md (1.2 KB | 47 lines)
+
+  1 | # Project Overview
+  2 | This document provides an overview of the project.
+  3 |
+  4 | ## Features
+  5 | - Fast
+  6 | - Simple
+  7 | - Modular
+  8 |
+ 47 | End of file
+
+------------------------------------------------------------
+# FILE: CHANGELOG.txt (24 KB | 1278 lines) ⚠️ Truncated (max_lines=1000)
+
+  1 | v1.0.0 - Initial release
+  2 | - Added dat.py core engine
+  ...
+999 | - Minor doc fixes
+1000 | (File truncated after 1000 lines)
+
+------------------------------------------------------------
+📂  DIRECTORY: ./project/assets/
+------------------------------------------------------------
+# FILE: logo.png (345.7 KB) ⚠️ Skipped (non-text / binary)
+# FILE: intro.mp4 (5.4 MB) ⚠️ Skipped (binary media file)
+
+------------------------------------------------------------
+
+SUMMARY REPORT
+============================================================
+
+Total directories scanned: 3  
+Total files processed: 7  
+Skipped binary/media files: 2  
+Truncated long files: 1  
+------------------------------------------------------------
+Total lines printed: 1297  
+Total file size processed: 29.6 KB  
+------------------------------------------------------------
+
+By category:
+- Code files: 2
+- Documentation files: 2
+- Media files: 2
+- Other: 1
+
+------------------------------------------------------------
+Top 5 files by line count:
+1. 1278 lines | ./project/docs/CHANGELOG.txt
+2. 162 lines  | ./project/src/utils/helpers.py
+3. 88 lines   | ./project/src/main.py
+4. 47 lines   | ./project/docs/README.md
+5. 12 lines   | ./project/setup.cfg
+
+Top 5 files by size:
+1. 5.4 MB | ./project/assets/intro.mp4
+2. 345.7 KB | ./project/assets/logo.png
+3. 24 KB | ./project/docs/CHANGELOG.txt
+4. 5.4 KB | ./project/src/utils/helpers.py
+5. 2.3 KB | ./project/src/main.py
+
+============================================================
+Audit complete in 2.94 seconds.
+Generated on: 2025-10-17  |  System: Linux/Termux
+============================================================

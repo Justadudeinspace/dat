@@ -1,0 +1,549 @@
+#!/usr/bin/env python3
+# Dev Audit Tool (dat) - v1.0.0
+# Author: ~JADIS | Justadudeinspace
+# Updated by: GPT-5, Deepseek AI, & Gemini 2.0 Flash
+# Description: A comprehensive tool for auditing codebases, with cross-platform support,
+#              file type filtering, and detailed reporting.
+
+import os
+import sys
+import shutil
+import platform
+from pathlib import Path
+import argparse
+import configparser
+import io
+
+try:
+    import magic
+except ImportError:
+    print("[ERROR] 'python-magic' is not installed. Run: pip install python-magic")
+    sys.exit(1)
+
+SCRIPT_NAME = "dat"
+INSTALL_DIRS = {
+    "Linux": Path.home() / ".local" / "bin",
+    "Darwin": Path.home() / ".local" / "bin",
+    "Windows": Path.home() / "AppData" / "Local" / "Programs" / "Python" / "Scripts",
+    "Android": Path("/data/data/com.termux/files/usr/bin")
+}
+
+def get_install_path():
+    """Get platform-specific install path."""
+    system = platform.system()
+    if "ANDROID_ROOT" in os.environ or "TERMUX_VERSION" in os.environ:
+        return INSTALL_DIRS["Android"] / SCRIPT_NAME
+    if "microsoft" in platform.uname().release.lower():
+        system = "Linux"
+    install_dir = INSTALL_DIRS.get(system, INSTALL_DIRS["Linux"])
+    install_dir.mkdir(parents=True, exist_ok=True)
+    return install_dir / SCRIPT_NAME
+
+INSTALL_PATH = get_install_path()
+
+def bootstrap():
+    """Install script as command on first run."""
+    if not INSTALL_PATH.exists():
+        try:
+            INSTALL_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(__file__, INSTALL_PATH)
+            if platform.system() != "Windows":
+                INSTALL_PATH.chmod(0o755)
+            if platform.system() == "Windows":
+                add_windows_to_path()
+            print(f"[BOOTSTRAP] Installed '{SCRIPT_NAME}' command to {INSTALL_PATH}")
+            print(f"[BOOTSTRAP] Ensure {INSTALL_PATH.parent} is in your PATH")
+            print(f"[BOOTSTRAP] You can now run: {SCRIPT_NAME} {SCRIPT_NAME} -c {SCRIPT_NAME} -a {SCRIPT_NAME} -f")
+        except PermissionError:
+            print(f"[BOOTSTRAP ERROR] Permission denied. Try sudo or admin rights.")
+            sys.exit(1)
+        except Exception as e:
+            print(f"[BOOTSTRAP ERROR] {e}")
+            sys.exit(1)
+
+    try:
+        os.execv(sys.executable, [sys.executable, str(INSTALL_PATH)] + sys.argv[1:])
+    except Exception as e:
+        print(f"[BOOTSTRAP ERROR] Failed to execute installed script: {e}")
+        sys.exit(1)
+
+def add_windows_to_path():
+    """Add install directory to Windows PATH if not already present."""
+    if platform.system() != "Windows":
+        return
+
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+            try:
+                path_value, _ = winreg.QueryValueEx(key, "PATH")
+            except FileNotFoundError:
+                path_value = ""
+
+            install_dir_str = str(INSTALL_PATH.parent)
+            if install_dir_str not in path_value:
+                new_path = f"{path_value};{install_dir_str}" if path_value else install_dir_str
+                winreg.SetValueEx(key, "PATH", 0, winreg.REG_EXPAND_SZ, new_path)
+                print(f"[BOOTSTRAP] Added {install_dir_str} to PATH")
+                print("[BOOTSTRAP] Restart terminal to apply PATH changes")
+    except ImportError:
+        print("[BOOTSTRAP] Note: winreg not available, manual PATH configuration may be needed")
+    except Exception as e:
+        print(f"[BOOTSTRAP] Could not update PATH: {e}")
+
+IS_WINDOWS = platform.system() == "Windows"
+IS_TERMUX = "ANDROID_ROOT" in os.environ or "TERMUX_VERSION" in os.environ
+
+CONFIG = configparser.ConfigParser()
+CONFIG_PATH = Path.home() / ".datconfig"
+CONFIG.read(CONFIG_PATH)
+
+def get_config_value(section, key, fallback=None, type='string'):
+    """Helper function to retrieve config values with fallback."""
+    try:
+        if type == 'int':
+            return CONFIG.getint(section, key)
+        elif type == 'bool':
+            return CONFIG.getboolean(section, key)
+        else:
+            return CONFIG.get(section, key)
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        return fallback
+
+DOC_EXTENSIONS = set(get_config_value('FileTypes', 'doc_extensions', '.md,.txt,.rst,.pdf,.doc,.docx,.odt,.tex,.rtf').split(','))
+CODE_EXTENSIONS = set(get_config_value('FileTypes', 'code_extensions', '.py,.js,.jsx,.java,.cpp,.c,.h,.hpp,.cs,.html,.htm,.css,.scss,.sass,.rb,.php,.go,.swift,.kt,.ts,.tsx,.rs,.sh,.bash,.zsh,.lua,.json,.xml,.yaml,.yml,.pl,.r,.dart,.m,.scala,.hs,.cob,.fs,.groovy,.vb,.tcl,.sql,.config,.ini,.toml,.cfg,.conf,.ps1,.bat,.cmd,.vbs,.asm,.s,.nim,.jl,.ex,.exs,.elm,.purs,.clj,.edn').split(','))
+MEDIA_EXTENSIONS = set(get_config_value('FileTypes', 'media_extensions', '.jpg,.jpeg,.png,.gif,.bmp,.svg,.mp4,.avi,.mov,.mp3,.wav,.flac,.ogg,.webm,.mkv').split(','))
+
+def supports_color():
+    """Check if terminal supports colors."""
+    if os.environ.get('NO_COLOR'):
+        return False
+    if not hasattr(sys.stdout, 'isatty') or not sys.stdout.isatty():
+        return False
+    if IS_WINDOWS:
+        return os.environ.get('TERM') in ('xterm', 'xterm-256color', 'cygwin')
+    return True
+
+if supports_color():
+    RESET = "\033[0m"
+    HEADER_COLOR = "\033[95m"
+    CODE_COLOR = "\033[94m"
+    DOC_COLOR = "\033[92m"
+    MEDIA_COLOR = "\033[93m"
+    ERROR_COLOR = "\033[91m"
+    SUMMARY_COLOR = "\033[96m"
+    if IS_WINDOWS:
+        HEADER_COLOR = "\033[35m"
+        CODE_COLOR = "\033[34m"
+        DOC_COLOR = "\033[32m"
+        SUMMARY_COLOR = "\033[36m"
+else:
+    RESET = HEADER_COLOR = CODE_COLOR = DOC_COLOR = MEDIA_COLOR = ERROR_COLOR = SUMMARY_COLOR = ""
+
+STATS = {
+    'total_files': 0,
+    'total_lines': 0,
+    'total_bytes': 0,
+    'code_files': 0,
+    'doc_files': 0,
+    'media_files': 0,
+    'other_files': 0,
+    'errors': 0,
+    'large_files': 0
+}
+TOP_LINES = []
+TOP_SIZE = []
+TOP_N = get_config_value('Settings', 'top_n', 5, 'int')
+
+def is_text_file(filepath, blocksize=512, max_size=10*1024*1024):
+    """Check if file is likely a text file."""
+    try:
+        filepath = Path(filepath)
+        size = filepath.stat().st_size
+    except OSError:
+        return False
+
+    if size > max_size:
+        return None # file is too large
+    
+    try:
+        with open(filepath, 'rb') as f:
+            block = f.read(blocksize)
+    except (PermissionError, OSError):
+        return False
+    
+    if not block:
+        return True
+    if b'\0' in block:
+        return False
+
+    binary_signatures = [
+        b'\xff\xd8\xff',  # JPEG
+        b'\x89PNG',       # PNG
+        b'GIF',           # GIF
+        b'%PDF',          # PDF
+        b'BM',            # BMP
+        b'\x00\x00\x01',  # ICO
+        b'\x1f\x8b\x08',  # GZIP
+        b'PK\x03\x04',    # ZIP
+        b'\x7fELF',       # ELF binary
+        b'MZ'             # Windows EXE
+    ]
+
+    for sig in binary_signatures:
+        if block.startswith(sig):
+            return False
+    return True
+
+def get_file_mime_type(filepath):
+    """Get file MIME type using the magic library."""
+    try:
+        return magic.from_file(filepath, mime=True)
+    except Exception:
+        return None
+
+def get_file_color(filepath):
+    """Determine color based on file type."""
+    ext = Path(filepath).suffix.lower()
+    mime_type = get_file_mime_type(filepath)
+
+    if ext in CODE_EXTENSIONS or (mime_type and 'text' in mime_type):
+        return CODE_COLOR
+    elif ext in DOC_EXTENSIONS or (mime_type and ('application/pdf' in mime_type or 'text/plain' in mime_type or 'application/msword' in mime_type)):
+        return DOC_COLOR
+    elif ext in MEDIA_EXTENSIONS or (mime_type and 'image' in mime_type or 'video' in mime_type or 'audio' in mime_type):
+        return MEDIA_COLOR
+    else:
+        return HEADER_COLOR
+
+def format_size(size_bytes):
+    """Convert bytes to human readable format."""
+    if size_bytes == 0:
+        return "0 B"
+    size_names = ["B", "KB", "MB", "GB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    return f"{size_bytes:.1f} {size_names[i]}"
+
+def print_header(filepath, lines, size):
+    """Format header with platform-appropriate width and colors."""
+    color = get_file_color(filepath)
+    terminal_width = get_terminal_width()
+    width = min(80, terminal_width - 4) if terminal_width else 76
+    display_path = str(filepath)
+    if len(display_path) > width - 20:
+        display_path = "..." + display_path[-(width - 23):]
+
+    if supports_color() and not IS_WINDOWS:
+        print(f"{color}\n╔{'═' * width}╗")
+        print(f"║ {display_path:<{width - 2}} ║")
+        print(f"║ {'Lines: ' + str(lines):<{width//2}} {'Size: ' + format_size(size):<{width//2 - 2}} ║")
+        print(f"╚{'═' * width}╝{RESET}\n")
+    else:
+        print(f"\n{'=' * width}")
+        print(f"{display_path}")
+        print(f"Lines: {lines} | Size: {format_size(size)}")
+        print(f"{'=' * width}\n")
+
+def get_terminal_width():
+    """Get terminal width with fallback."""
+    try:
+        if IS_WINDOWS:
+            import ctypes
+            import struct
+            handle = ctypes.windll.kernel32.GetStdHandle(-11)
+            csbi = ctypes.create_string_buffer(22)
+            res = ctypes.windll.kernel32.GetConsoleScreenBufferInfo(handle, csbi)
+            if res:
+                width = struct.unpack("hhhhHhhhhhh", csbi.raw)[0]
+                return width
+        else:
+            import fcntl
+            import termios
+            import struct
+            cr = struct.pack('HHHH', 0, 0, 0, 0)
+            try:
+                cr = fcntl.ioctl(1, termios.TIOCGWINSZ, cr)
+            except (IOError, OSError):
+                return 80
+            _, width, _, _ = struct.unpack('HHHH', cr)
+            return width
+    except:
+        pass
+    return 80
+
+def update_top_lists(filepath, lines, size):
+    """Update top files lists."""
+    TOP_LINES.append((lines, str(filepath)))
+    TOP_SIZE.append((size, str(filepath)))
+
+def finalize_top_lists(top_n):
+    """Sort and trim top lists after processing."""
+    global TOP_LINES, TOP_SIZE
+    TOP_LINES.sort(reverse=True)
+    TOP_SIZE.sort(reverse=True)
+    TOP_LINES = TOP_LINES[:top_n]
+    TOP_SIZE = TOP_SIZE[:top_n]
+
+def cat_file(filepath, out, max_lines):
+    """Display file content with encoding handling."""
+    global STATS
+    lines = 0
+    size = 0
+    truncated = False
+    original_lines = 0
+
+    try:
+        filepath = Path(filepath)
+        size = filepath.stat().st_size
+
+        encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252', 'iso-8859-1']
+        content = None
+
+        for encoding in encodings:
+            try:
+                with io.open(filepath, 'r', encoding=encoding, errors='strict') as f:
+                    content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if content is None:
+            with io.open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+
+        lines = content.count('\n') + 1 if content else 0
+        original_lines = lines
+
+        if lines > max_lines:
+            content_lines = content.splitlines()
+            content = '\n'.join(content_lines[:max_lines])
+            content += f"\n\n[TRUNCATED - showing first {max_lines} of {original_lines} lines]"
+            truncated = True
+            lines = max_lines
+
+        if out:
+            out.write(f"\n===== {filepath} | {lines} lines | {format_size(size)} =====\n")
+            out.write(content + "\n")
+            if truncated:
+                out.write(f"[TRUNCATED - original had {original_lines} lines]\n")
+        else:
+            print_header(filepath, lines, size)
+            print(content)
+
+    except (PermissionError, OSError) as e:
+        print(f"{ERROR_COLOR}[ACCESS ERROR]: {filepath} - {e}{RESET}", file=sys.stderr)
+        STATS['errors'] += 1
+        return
+    except Exception as e:
+        print(f"{ERROR_COLOR}[READ ERROR]: {filepath} - {e}{RESET}", file=sys.stderr)
+        STATS['errors'] += 1
+        return
+
+    STATS['total_files'] += 1
+    STATS['total_lines'] += lines
+    STATS['total_bytes'] += size
+
+    ext = filepath.suffix.lower()
+    if ext in CODE_EXTENSIONS:
+        STATS['code_files'] += 1
+    elif ext in DOC_EXTENSIONS:
+        STATS['doc_files'] += 1
+    elif ext in MEDIA_EXTENSIONS:
+        STATS['media_files'] += 1
+    else:
+        STATS['other_files'] += 1
+
+    update_top_lists(filepath, original_lines, size)
+
+def should_process_file(filepath, doc_only, code_only, media_only, extensions):
+    """Determine if file should be processed based on filters."""
+    filepath = Path(filepath)
+
+    ext = filepath.suffix.lower()
+    mime_type = get_file_mime_type(filepath)
+
+    if doc_only and ext not in DOC_EXTENSIONS and not (mime_type and ('application/pdf' in mime_type or 'text/plain' in mime_type or 'application/msword' in mime_type)):
+        return False
+    if code_only and ext not in CODE_EXTENSIONS and not (mime_type and 'text' in mime_type):
+        return False
+    if media_only and ext not in MEDIA_EXTENSIONS and not (mime_type and ('image' in mime_type or 'video' in mime_type or 'audio' in mime_type)):
+        return False
+    if extensions and ext not in extensions:
+        return False
+        
+    is_text = is_text_file(filepath)
+    if is_text is None:
+        STATS['large_files'] += 1
+        return False
+    if not is_text:
+        return False
+    
+    return True
+
+def process_directory(dirpath, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n):
+    """Processes files in a directory, handling hidden files."""
+    try:
+        for item in dirpath.iterdir():
+            try:
+                is_hidden = False
+                if not include_hidden:
+                    if item.name.startswith('.'):
+                        is_hidden = True
+                    elif IS_WINDOWS:
+                        import ctypes
+                        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(item))
+                        if attrs != -1 and attrs & 0x2:
+                            is_hidden = True
+                
+                if is_hidden:
+                    continue
+
+                if item.is_file() and should_process_file(item, doc_only, code_only, media_only, extensions):
+                    cat_file(item, out, max_lines)
+            except Exception:
+                 STATS['errors']+=1
+
+    except (PermissionError, OSError) as e:
+        print(f"{ERROR_COLOR}[DIRECTORY ACCESS ERROR]: {dirpath} - {e}{RESET}", file=sys.stderr)
+        STATS['errors'] += 1
+    except StopIteration:
+        pass
+
+def cat_all(root, include_hidden, doc_only, code_only, media_only, extensions, out, current_only, max_file_size, max_lines, top_n):
+    """Enhanced directory traversal."""
+    root_path = Path(root).resolve()
+
+    if not root_path.exists():
+        print(f"{ERROR_COLOR}Error: Path '{root}' does not exist{RESET}", file=sys.stderr)
+        return
+
+    if current_only:
+        process_directory(root_path, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n)
+    else:
+        for dirpath, _, filenames in os.walk(root_path):
+            process_directory(Path(dirpath), include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n)
+
+    finalize_top_lists(top_n)
+
+def print_summary(top_n):
+    """Enhanced summary display."""
+    print(f"{SUMMARY_COLOR}\n{'='*60}")
+    print("DEV AUDIT SUMMARY")
+    print(f"{'='*60}{RESET}")
+
+    print(f"Total files processed: {STATS['total_files']}")
+    print(f"Total lines: {STATS['total_lines']}")
+    print(f"Total size: {format_size(STATS['total_bytes'])}")
+    print(f"Code files: {STATS['code_files']}, Docs: {STATS['doc_files']}, Media: {STATS['media_files']}, Other: {STATS['other_files']}")
+    if STATS['large_files'] > 0:
+        print(f"Skipped large files: {STATS['large_files']}")
+
+    if STATS['errors'] > 0:
+        print(f"{ERROR_COLOR}Errors encountered: {STATS['errors']}{RESET}")
+
+    if TOP_LINES:
+        print(f"\nTop {top_n} files by lines:")
+        for lines, path in TOP_LINES:
+            print(f"  {lines:>6} lines | {path}")
+
+    if TOP_SIZE:
+        print(f"\nTop {top_n} files by size:")
+        for size, path in TOP_SIZE:
+            print(f"  {format_size(size):>10} | {path}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="dat - Dev Audit Tool v1.0.0",
+        epilog=f"""
+Platform: {platform.system()} {platform.release()}
+Examples:
+  {SCRIPT_NAME}                    # Audit current directory
+  {SCRIPT_NAME} /path/to/project   # Audit specific directory
+  {SCRIPT_NAME} -c -f              # Code files in current folder only
+  {SCRIPT_NAME} -e py,js,html      # Custom file extensions
+  {SCRIPT_NAME} -o audit.txt       # Output to file
+  {SCRIPT_NAME} -a                 # Include hidden files
+  {SCRIPT_NAME} --version          # Show version info
+
+Configuration:
+  dat reads configuration from ~/.datconfig. Example:
+
+    [Settings]
+    top_n = 10
+
+    [FileTypes]
+    doc_extensions = .md,.txt,.rst,.pdf
+    code_extensions = .py,.js,.html
+    media_extensions = .jpg,.png,.mp4
+        """
+    )
+
+    parser.add_argument('path', nargs='?', default='.', help='Path to audit')
+    parser.add_argument('-a', '--all', action='store_true', help='Include hidden files')
+    parser.add_argument('-d', '--docs', action='store_true', help='Documentation files only')
+    parser.add_argument('-c', '--code', action='store_true', help='Code files only')
+    parser.add_argument('-m', '--media', action='store_true', help='Media files only')
+    parser.add_argument('-e', '--ext', type=str, help='Comma-separated custom extensions')
+    parser.add_argument('-f', '--folder', action='store_true', help='Current folder only (no recursion)')
+    parser.add_argument('-o', '--output', type=str, help='Write output to file')
+    parser.add_argument('--max-lines', type=int, default=1000, help='Max lines per file (default: 1000)')
+    parser.add_argument('--max-size', type=int, default=10*1024*1024, help='Max file size in bytes (default: 10MB)')
+    parser.add_argument('--top-n', type=int, default=5, help='Number of top files to show (default: 5)')
+    parser.add_argument('--no-bootstrap', action='store_true', help='Skip auto-installation')
+    parser.add_argument('--version', action='store_true', help='Show version and platform info')
+
+    args = parser.parse_args()
+
+    if not args.no_bootstrap and shutil.which('dat') is None:
+        bootstrap()
+
+    top_n_value = args.top_n if args.top_n is not None else TOP_N
+
+    if args.version:
+        print(f"dat - Dev Audit Tool v1.0.0")
+        print(f"Platform: {platform.system()} {platform.release()}")
+        print(f"Python: {sys.version}")
+        print(f"Requires python-magic & configparser")
+        print(f"Install path: {INSTALL_PATH}")
+        if IS_WINDOWS:
+            print("[NOTE] Windows PATH changes require terminal restart.")
+        sys.exit(0)
+
+    extensions = set(f".{e.lower().strip()}" for e in args.ext.split(',')) if args.ext else None
+
+    out_file = None
+    if args.output:
+        try:
+            out_file = open(args.output, 'w', encoding='utf-8')
+        except IOError as e:
+            print(f"{ERROR_COLOR}Error opening output file: {e}{RESET}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        cat_all(
+            root=args.path,
+            include_hidden=args.all,
+            doc_only=args.docs,
+            code_only=args.code,
+            media_only=args.media,
+            extensions=extensions,
+            out=out_file,
+            current_only=args.folder,
+            max_file_size=args.max_size,
+            max_lines=args.max_lines,
+            top_n=top_n_value
+        )
+    except KeyboardInterrupt:
+        print(f"\n{ERROR_COLOR}Audit interrupted by user{RESET}")
+    finally:
+        if out_file:
+            out_file.close()
+
+    if STATS['total_files'] > 0 or STATS['errors'] > 0 or STATS['large_files'] > 0:
+        print_summary(top_n=top_n_value)
+    else:
+        print(f"{ERROR_COLOR}No files found matching the specified criteria{RESET}")
