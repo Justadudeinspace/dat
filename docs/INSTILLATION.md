@@ -1,4 +1,3 @@
-### 🧩 `docs/INSTALLATION.md`
 
 # Installation Guide
 
