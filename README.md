@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs/assets/dat-logo.png" alt="DAT v1.0.0" width="600">
+</p>
+
 # Dev Audit Tool (`dat`) - v1.0.0
 
 > - Author: ~JADIS | Justadudeinspace
@@ -12,7 +16,7 @@ A comprehensive `developer audit tool` that prints the contents of files in a di
 
 - Prints contents of all files in a directory and subdirectories
 
-- Filter by file type: code, docs, media, or custom extensions
+- Filter by file type: `code`, `docs`, `media`, or custom extensions
 
 - Limit the number of lines displayed per file
 
@@ -56,7 +60,7 @@ sudo apt update && sudo apt install -y libmagic1 libmagic-dev
 brew install libmagic
 ```
 - Windows
-````
+```
 pip install python-magic-bin
 ```
 - Termux / Android
@@ -79,7 +83,7 @@ chmod +x dat
 python dat
 ```
 
-On Windows, you may need to restart your terminal to apply PATH changes.
+On Windows, you may need to restart your terminal to apply `PATH` changes.
 
 > Optional: Skip bootstrap with `--no-bootstrap`.
 
@@ -209,11 +213,11 @@ extensions = .foo,.bar,.example
 
 `max_lines`: Limits lines printed per file; files exceeding this will be truncated
 
-max_size: Skips files larger than this size to prevent long processing times
+`max_size`: Skips files larger than this size to prevent long processing times
 
-[FileTypes]: Classify files by type (`code`, `docs`, `media`) for filtering options
+[`FileTypes`]: Classify files by type (`code`, `docs`, `media`) for filtering options
 
-[CustomExtensions]: Allows you to define additional extensions you want `dat` to process
+[`CustomExtensions`]: Allows you to define additional extensions you want `dat` to process
 
 ---
 
@@ -253,7 +257,7 @@ On first run, `dat` will attempt to install itself as a command for easy access:
 
 - Linux/macOS/Termux: Auto-install to `~/.local/bin/dat`.
 
-- Windows: Auto-install to `%LOCALAPPDATA%\Programs\Python\Scripts\dat.exe` and optionally add to PATH.
+- Windows: Auto-install to `%LOCALAPPDATA%\Programs\Python\Scripts\dat.exe` and optionally add to `PATH`.
 
 
 > Use `--no-bootstrap` to skip this step.
@@ -276,7 +280,7 @@ Optional: `colorama`, `Pillow`, `PyPDF2`
 
 ## License
 
-MIT License – See LICENSE
+MIT License – See [LICENSE](./LICENSE)
 
 
 ---
