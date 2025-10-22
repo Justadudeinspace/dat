@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Dev Audit Tool (dat) - v1.0.0
+###########################################################
+# Dev Audit Tool (dat) - v2.0.0-Stable
 # Author: ~JADIS | Justadudeinspace
 # Updated by: GPT-5, Deepseek AI, & Gemini 2.0 Flash
-# Description: A comprehensive tool for auditing codebases, with cross-platform support,
-#              file type filtering, and detailed reporting.
+# Description: A comprehensive tool for auditing codebases with PDF output support
+###########################################################
 
 import os
 import sys
@@ -13,6 +14,14 @@ from pathlib import Path
 import argparse
 import configparser
 import io
+import tempfile
+import re
+
+# Check Python version and ensure python3 is used
+if sys.version_info < (3, 6):
+    print("ERROR: Python 3.6 or higher is required. You are using Python {}.{}".format(
+        sys.version_info.major, sys.version_info.minor))
+    sys.exit(1)
 
 try:
     import magic
@@ -20,10 +29,23 @@ except ImportError:
     print("[ERROR] 'python-magic' is not installed. Run: pip install python-magic")
     sys.exit(1)
 
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.units import inch
+    REPORTLAB_OK = True
+except ImportError:
+    REPORTLAB_OK = False
+
+# ==================== CORE DAT FUNCTIONALITY ====================
+
 SCRIPT_NAME = "dat"
 INSTALL_DIRS = {
     "Linux": Path.home() / ".local" / "bin",
-    "Darwin": Path.home() / ".local" / "bin",
+    "Darwin": Path.home() / ".local" / "bin", 
     "Windows": Path.home() / "AppData" / "Local" / "Programs" / "Python" / "Scripts",
     "Android": Path("/data/data/com.termux/files/usr/bin")
 }
@@ -31,10 +53,30 @@ INSTALL_DIRS = {
 def get_install_path():
     """Get platform-specific install path."""
     system = platform.system()
-    if "ANDROID_ROOT" in os.environ or "TERMUX_VERSION" in os.environ:
+    
+    # Detect native Termux vs Linux environment on Android
+    is_native_termux = (
+        "ANDROID_ROOT" in os.environ or 
+        "TERMUX_VERSION" in os.environ or
+        Path("/data/data/com.termux/files/usr").exists()
+    )
+    
+    # Check if we're in Linux environment on Android (like Andronix/UserLAnd)
+    is_android_linux = (
+        system == "Linux" and 
+        not is_native_termux and
+        any(key in os.environ for key in ['ANDROID_DATA', 'ANDROID_ROOT']) or
+        Path("/system/bin").exists()
+    )
+    
+    if is_native_termux:
         return INSTALL_DIRS["Android"] / SCRIPT_NAME
-    if "microsoft" in platform.uname().release.lower():
+    elif is_android_linux:
+        # Use Linux paths for Linux environments on Android
+        return INSTALL_DIRS["Linux"] / SCRIPT_NAME
+    elif "microsoft" in platform.uname().release.lower():
         system = "Linux"
+        
     install_dir = INSTALL_DIRS.get(system, INSTALL_DIRS["Linux"])
     install_dir.mkdir(parents=True, exist_ok=True)
     return install_dir / SCRIPT_NAME
@@ -53,7 +95,6 @@ def bootstrap():
                 add_windows_to_path()
             print(f"[BOOTSTRAP] Installed '{SCRIPT_NAME}' command to {INSTALL_PATH}")
             print(f"[BOOTSTRAP] Ensure {INSTALL_PATH.parent} is in your PATH")
-            print(f"[BOOTSTRAP] You can now run: {SCRIPT_NAME} {SCRIPT_NAME} -c {SCRIPT_NAME} -a {SCRIPT_NAME} -f")
         except PermissionError:
             print(f"[BOOTSTRAP ERROR] Permission denied. Try sudo or admin rights.")
             sys.exit(1)
@@ -93,7 +134,17 @@ def add_windows_to_path():
         print(f"[BOOTSTRAP] Could not update PATH: {e}")
 
 IS_WINDOWS = platform.system() == "Windows"
-IS_TERMUX = "ANDROID_ROOT" in os.environ or "TERMUX_VERSION" in os.environ
+IS_TERMUX = (
+    "ANDROID_ROOT" in os.environ or 
+    "TERMUX_VERSION" in os.environ or
+    Path("/data/data/com.termux/files/usr").exists()
+)
+IS_ANDROID_LINUX = (
+    platform.system() == "Linux" and 
+    not IS_TERMUX and
+    (any(key in os.environ for key in ['ANDROID_DATA', 'ANDROID_ROOT']) or
+     Path("/system/bin").exists())
+)
 
 CONFIG = configparser.ConfigParser()
 CONFIG_PATH = Path.home() / ".datconfig"
@@ -156,6 +207,56 @@ TOP_LINES = []
 TOP_SIZE = []
 TOP_N = get_config_value('Settings', 'top_n', 5, 'int')
 
+# Default ignore patterns
+DEFAULT_IGNORES = {".pyc", "__pycache__", ".git", ".DS_Store", ".pytest_cache", "node_modules", ".venv", "venv"}
+
+def resolve_target_path(user_input: str) -> Path:
+    """Resolve a file even if the user omits its extension."""
+    base = Path(user_input)
+    if base.exists():
+        return base
+
+    # Try common extensions if not provided
+    candidates = [
+        base.with_suffix(".py"),
+        base.with_suffix(".sh"),
+        base.with_suffix(".md"),
+        base.with_suffix(".txt"),
+    ]
+
+    for c in candidates:
+        if c.exists():
+            return c
+
+    # Optionally, search relative to project root
+    root = Path.cwd()
+    for ext in [".py", ".sh", ".md", ".txt"]:
+        for p in root.rglob(f"{base.name}{ext}"):
+            return p
+
+    raise FileNotFoundError(f"Could not find file matching '{user_input}'")
+
+def should_ignore(path: Path, ignore_patterns: set) -> bool:
+    """Check if a path should be ignored based on ignore patterns."""
+    name = path.name
+    parts = set(path.parts)
+    s = str(path)
+    
+    for pat in ignore_patterns:
+        if not pat:
+            continue
+        p = pat.strip()
+        # exact filename or dir match
+        if p in parts or name == p:
+            return True
+        # extension-style ignore
+        if p.startswith('.') and name.endswith(p):
+            return True
+        # glob-ish contains (fallback)
+        if p in s:
+            return True
+    return False
+
 def is_text_file(filepath, blocksize=512, max_size=10*1024*1024):
     """Check if file is likely a text file."""
     try:
@@ -165,16 +266,17 @@ def is_text_file(filepath, blocksize=512, max_size=10*1024*1024):
         return False
 
     if size > max_size:
-        return None # file is too large
-    
+        return None  # file is too large
+
     try:
         with open(filepath, 'rb') as f:
             block = f.read(blocksize)
     except (PermissionError, OSError):
         return False
-    
+
     if not block:
         return True
+
     if b'\0' in block:
         return False
 
@@ -359,9 +461,18 @@ def cat_file(filepath, out, max_lines):
 
     update_top_lists(filepath, original_lines, size)
 
-def should_process_file(filepath, doc_only, code_only, media_only, extensions):
+def parse_extensions(arg: str) -> set[str]:
+    """Parse comma-separated extensions, normalizing with leading dots."""
+    parts = [p.strip().lower() for p in arg.split(',') if p.strip()]
+    return {"." + p.lstrip('.') for p in parts}
+
+def should_process_file(filepath, doc_only, code_only, media_only, extensions, ignore_patterns, max_file_size):
     """Determine if file should be processed based on filters."""
     filepath = Path(filepath)
+
+    # Check ignore patterns first
+    if should_ignore(filepath, ignore_patterns):
+        return False
 
     ext = filepath.suffix.lower()
     mime_type = get_file_mime_type(filepath)
@@ -374,17 +485,17 @@ def should_process_file(filepath, doc_only, code_only, media_only, extensions):
         return False
     if extensions and ext not in extensions:
         return False
-        
-    is_text = is_text_file(filepath)
+
+    is_text = is_text_file(filepath, max_size=max_file_size)
     if is_text is None:
         STATS['large_files'] += 1
         return False
     if not is_text:
         return False
-    
+
     return True
 
-def process_directory(dirpath, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n):
+def process_directory(dirpath, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n, ignore_patterns, max_file_size):
     """Processes files in a directory, handling hidden files."""
     try:
         for item in dirpath.iterdir():
@@ -398,22 +509,21 @@ def process_directory(dirpath, include_hidden, doc_only, code_only, media_only, 
                         attrs = ctypes.windll.kernel32.GetFileAttributesW(str(item))
                         if attrs != -1 and attrs & 0x2:
                             is_hidden = True
-                
+
                 if is_hidden:
                     continue
 
-                if item.is_file() and should_process_file(item, doc_only, code_only, media_only, extensions):
+                if item.is_file() and should_process_file(item, doc_only, code_only, media_only, extensions, ignore_patterns, max_file_size):
                     cat_file(item, out, max_lines)
             except Exception:
-                 STATS['errors']+=1
-
+                STATS['errors'] += 1
     except (PermissionError, OSError) as e:
         print(f"{ERROR_COLOR}[DIRECTORY ACCESS ERROR]: {dirpath} - {e}{RESET}", file=sys.stderr)
         STATS['errors'] += 1
     except StopIteration:
         pass
 
-def cat_all(root, include_hidden, doc_only, code_only, media_only, extensions, out, current_only, max_file_size, max_lines, top_n):
+def cat_all(root, include_hidden, doc_only, code_only, media_only, extensions, out, current_only, max_file_size, max_lines, top_n, ignore_patterns):
     """Enhanced directory traversal."""
     root_path = Path(root).resolve()
 
@@ -422,10 +532,16 @@ def cat_all(root, include_hidden, doc_only, code_only, media_only, extensions, o
         return
 
     if current_only:
-        process_directory(root_path, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n)
+        process_directory(root_path, include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n, ignore_patterns, max_file_size)
     else:
-        for dirpath, _, filenames in os.walk(root_path):
-            process_directory(Path(dirpath), include_hidden, doc_only, code_only, media_only, extensions, out, max_lines, top_n)
+        for dirpath, dirs, files in os.walk(root_path):
+            # Filter directories in-place to prevent walking into ignored directories
+            dirs[:] = [d for d in dirs if not should_ignore(Path(dirpath) / d, ignore_patterns)]
+
+            for file in files:
+                filepath = Path(dirpath) / file
+                if should_process_file(filepath, doc_only, code_only, media_only, extensions, ignore_patterns, max_file_size):
+                    cat_file(filepath, out, max_lines)
 
     finalize_top_lists(top_n)
 
@@ -439,6 +555,7 @@ def print_summary(top_n):
     print(f"Total lines: {STATS['total_lines']}")
     print(f"Total size: {format_size(STATS['total_bytes'])}")
     print(f"Code files: {STATS['code_files']}, Docs: {STATS['doc_files']}, Media: {STATS['media_files']}, Other: {STATS['other_files']}")
+
     if STATS['large_files'] > 0:
         print(f"Skipped large files: {STATS['large_files']}")
 
@@ -455,9 +572,175 @@ def print_summary(top_n):
         for size, path in TOP_SIZE:
             print(f"  {format_size(size):>10} | {path}")
 
-if __name__ == "__main__":
+# ==================== SINGLE FILE FUNCTIONALITY ====================
+
+def print_single_file(file_path: str, max_lines: int = 1000):
+    """Print a single file to terminal with formatting."""
+    try:
+        # Resolve file path (with or without extension)
+        resolved_path = resolve_target_path(file_path)
+
+        # Reset stats for single file operation
+        global STATS, TOP_LINES, TOP_SIZE
+        STATS = {k: 0 for k in STATS}
+        TOP_LINES = []
+        TOP_SIZE = []
+
+        # Process the single file
+        cat_file(resolved_path, None, max_lines)
+
+    except FileNotFoundError as e:
+        print(f"{ERROR_COLOR}Error: {e}{RESET}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"{ERROR_COLOR}Error processing file: {e}{RESET}", file=sys.stderr)
+        sys.exit(1)
+
+# ==================== PDF OUTPUT FUNCTIONALITY ====================
+
+def sanitize(text: str) -> str:
+    """Sanitize text for PDF output by replacing problematic characters."""
+    rep = {
+        "█": "#", "▓": "#", "▒": "#", "│": "|", "┆": "|", "┃": "|",
+        "─": "-", "━": "-", "┈": "-", "═": "=", "╔": "+", "╗": "+",
+        "╚": "+", "╝": "+", "╠": "+", "╣": "+", "╦": "+", "╩": "+", "╬": "+"
+    }
+    return re.sub("|".join(map(re.escape, rep.keys())),
+                  lambda m: rep[m.group(0)], text)
+
+def md_to_pdf(md_path: Path, pdf_path: Path):
+    """Convert markdown file to PDF."""
+    if not REPORTLAB_OK:
+        raise RuntimeError("ReportLab not installed. Run: pip install reportlab")
+
+    mono = "DejaVuSansMono"
+    try:
+        pdfmetrics.registerFont(
+            TTFont(mono, "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf")
+        )
+    except Exception:
+        mono = "Courier"
+
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=letter,
+                            rightMargin=0.5*inch, leftMargin=0.5*inch,
+                            topMargin=0.75*inch, bottomMargin=0.75*inch)
+    styles = getSampleStyleSheet()
+    h1, h2 = styles["Heading1"], styles["Heading2"]
+    body = ParagraphStyle("Body", fontName=mono, fontSize=8, leading=10)
+
+    elements, code = [], False
+    with open(md_path, "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if line.strip().startswith("```"):
+                code = not code
+                continue
+            if line.startswith("# "):
+                elements.append(Paragraph(sanitize(line[2:].strip()), h1)); continue
+            if line.startswith("## "):
+                elements.append(Paragraph(sanitize(line[3:].strip()), h2)); continue
+            if line.strip():
+                elements.append(Preformatted(sanitize(line), body))
+            else:
+                elements.append(Spacer(1, 0.08*inch))
+    doc.build(elements)
+    print(f"Wrote PDF → {pdf_path}")
+
+def export_to_pdf(output_path: Path, paths, include_hidden=False, doc_only=False,
+                  code_only=False, media_only=False, extensions=None,
+                  current_only=False, max_lines=1000, top_n=5, ignore_patterns=None):
+    """Export DAT output directly to PDF."""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".md", mode='w', encoding='utf-8') as tmp:
+        tmp_md = Path(tmp.name)
+
+    try:
+        # Run DAT and capture output to temporary markdown file
+        out_file = open(tmp_md, 'w', encoding='utf-8')
+        try:
+            root_path = paths[0] if paths else '.'
+            cat_all(
+                root=root_path,
+                include_hidden=include_hidden,
+                doc_only=doc_only,
+                code_only=code_only,
+                media_only=media_only,
+                extensions=extensions,
+                out=out_file,
+                current_only=current_only,
+                max_file_size=10*1024*1024,
+                max_lines=max_lines,
+                top_n=top_n,
+                ignore_patterns=ignore_patterns
+            )
+        finally:
+            out_file.close()
+
+        # Convert to PDF
+        md_to_pdf(tmp_md, output_path)
+
+    finally:
+        tmp_md.unlink(missing_ok=True)
+
+def process_single_file(input_path: str, output_path: Path, max_lines=1000):
+    """Process a single file and output to specified format."""
+    try:
+        # Resolve input path (with or without extension)
+        input_file = resolve_target_path(input_path)
+
+        if output_path.suffix.lower() == '.pdf':
+            # For PDF output, create a temporary markdown file first
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".md", mode='w', encoding='utf-8') as tmp:
+                tmp_md = Path(tmp.name)
+
+            try:
+                # Write single file content to temporary markdown
+                with open(tmp_md, 'w', encoding='utf-8') as out_file:
+                    cat_file(input_file, out_file, max_lines)
+
+                # Convert to PDF
+                md_to_pdf(tmp_md, output_path)
+            finally:
+                tmp_md.unlink(missing_ok=True)
+        else:
+            # For text-based output formats
+            with open(output_path, 'w', encoding='utf-8') as out_file:
+                cat_file(input_file, out_file, max_lines)
+            print(f"Wrote {output_path.suffix.upper()} → {output_path}")
+
+    except FileNotFoundError as e:
+        print(f"{ERROR_COLOR}Error: {e}{RESET}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"{ERROR_COLOR}Error processing file: {e}{RESET}", file=sys.stderr)
+        sys.exit(1)
+
+# ==================== DEPENDENCY CHECK ====================
+
+def check_dependencies():
+    """Check if all required dependencies are available."""
+    missing_deps = []
+
+    try:
+        import magic
+    except ImportError:
+        missing_deps.append("python-magic")
+
+    try:
+        import configparser
+    except ImportError:
+        missing_deps.append("configparser")
+
+    if missing_deps:
+        print(f"{ERROR_COLOR}[ERROR] Missing required dependencies: {', '.join(missing_deps)}{RESET}")
+        print(f"{ERROR_COLOR}[ERROR] Run: pip install -r requirements.txt{RESET}")
+        print(f"{ERROR_COLOR}[ERROR] Or run: ./install_deps.sh{RESET}")
+        sys.exit(1)
+
+# ==================== MAIN EXECUTION ====================
+
+def main():
     parser = argparse.ArgumentParser(
-        description="dat - Dev Audit Tool v1.0.0",
+        description="dat - Dev Audit Tool v2.0.0",
         epilog=f"""
 Platform: {platform.system()} {platform.release()}
 Examples:
@@ -465,31 +748,38 @@ Examples:
   {SCRIPT_NAME} /path/to/project   # Audit specific directory
   {SCRIPT_NAME} -c -f              # Code files in current folder only
   {SCRIPT_NAME} -e py,js,html      # Custom file extensions
-  {SCRIPT_NAME} -o audit.txt       # Output to file
+  {SCRIPT_NAME} -o audit.txt       # Output to text file
+  {SCRIPT_NAME} -o report.pdf      # Output to PDF file
+  {SCRIPT_NAME} file.py -o out.txt # Process single file
+  {SCRIPT_NAME} -s file_example    # Print single file (with or without extension)
+  {SCRIPT_NAME} file_example -o example.pdf # Process single file without extension
+  {SCRIPT_NAME} -i .pyc __pycache__ .git # Ignore patterns
   {SCRIPT_NAME} -a                 # Include hidden files
   {SCRIPT_NAME} --version          # Show version info
 
 Configuration:
   dat reads configuration from ~/.datconfig. Example:
 
-    [Settings]
-    top_n = 10
+  [Settings]
+  top_n = 10
 
-    [FileTypes]
-    doc_extensions = .md,.txt,.rst,.pdf
-    code_extensions = .py,.js,.html
-    media_extensions = .jpg,.png,.mp4
-        """
+  [FileTypes]
+  doc_extensions = .md,.txt,.rst,.pdf
+  code_extensions = .py,.js,.html
+  media_extensions = .jpg,.png,.mp4
+"""
     )
 
-    parser.add_argument('path', nargs='?', default='.', help='Path to audit')
+    parser.add_argument('path', nargs='?', default='.', help='Path to audit or single file')
     parser.add_argument('-a', '--all', action='store_true', help='Include hidden files')
     parser.add_argument('-d', '--docs', action='store_true', help='Documentation files only')
     parser.add_argument('-c', '--code', action='store_true', help='Code files only')
     parser.add_argument('-m', '--media', action='store_true', help='Media files only')
     parser.add_argument('-e', '--ext', type=str, help='Comma-separated custom extensions')
     parser.add_argument('-f', '--folder', action='store_true', help='Current folder only (no recursion)')
-    parser.add_argument('-o', '--output', type=str, help='Write output to file')
+    parser.add_argument('-o', '--output', type=str, help='Write output to file (supports .txt, .md, .pdf)')
+    parser.add_argument('-s', '--single', '--single-page', dest='single_page', metavar='FILE', help='Print a single file (with or without extension) to terminal')
+    parser.add_argument('-i', '-I', '--ignore', nargs='*', default=[], help='Ignore patterns (space/comma separated): e.g. -i .pyc __pycache__ .git,node_modules')
     parser.add_argument('--max-lines', type=int, default=1000, help='Max lines per file (default: 1000)')
     parser.add_argument('--max-size', type=int, default=10*1024*1024, help='Max file size in bytes (default: 10MB)')
     parser.add_argument('--top-n', type=int, default=5, help='Number of top files to show (default: 5)')
@@ -501,27 +791,101 @@ Configuration:
     if not args.no_bootstrap and shutil.which('dat') is None:
         bootstrap()
 
+    # Check dependencies
+    check_dependencies()
+
+    # Build ignore patterns (defaults + user provided), accept commas or spaces
+    import re as _re
+    _user_ign = set()
+    for tok in (args.ignore or []):
+        for p in _re.split(r'[,\s]+', tok):
+            p = p.strip()
+            if p:
+                _user_ign.add(p)
+
+    ignore_patterns = DEFAULT_IGNORES.union(_user_ign)
+    if ignore_patterns:
+        print(f"[INFO] Ignoring patterns: {', '.join(sorted(ignore_patterns))}")
+
     top_n_value = args.top_n if args.top_n is not None else TOP_N
 
     if args.version:
-        print(f"dat - Dev Audit Tool v1.0.0")
+        print(f"dat - Dev Audit Tool v2.0.0")
         print(f"Platform: {platform.system()} {platform.release()}")
+        print(f"Environment: {'Termux' if IS_TERMUX else 'Android Linux' if IS_ANDROID_LINUX else 'Standard'}")
         print(f"Python: {sys.version}")
-        print(f"Requires python-magic & configparser")
+        print(f"Python executable: {sys.executable}")
+        if REPORTLAB_OK:
+            print(f"PDF support: Available")
+        else:
+            print(f"PDF support: Install reportlab for PDF output")
         print(f"Install path: {INSTALL_PATH}")
         if IS_WINDOWS:
             print("[NOTE] Windows PATH changes require terminal restart.")
         sys.exit(0)
 
-    extensions = set(f".{e.lower().strip()}" for e in args.ext.split(',')) if args.ext else None
+    # Handle single file printing (-s flag)
+    if args.single_page:
+        print_single_file(args.single_page, args.max_lines)
+        return
 
-    out_file = None
-    if args.output:
+    extensions = parse_extensions(args.ext) if args.ext else None
+
+    # Check if we're processing a single file or directory
+    is_single_file = False
+    input_path = Path(args.path)
+
+    # Check if it's a single file (exists as file)
+    if input_path.is_file():
+        is_single_file = True
+    # Check if it might be a single file without extension
+    elif not input_path.exists():
         try:
-            out_file = open(args.output, 'w', encoding='utf-8')
-        except IOError as e:
-            print(f"{ERROR_COLOR}Error opening output file: {e}{RESET}", file=sys.stderr)
-            sys.exit(1)
+            # Try to resolve it as a single file
+            resolved_path = resolve_target_path(args.path)
+            if resolved_path.is_file():
+                is_single_file = True
+                input_path = resolved_path
+        except FileNotFoundError:
+            # If we can't resolve it, treat as directory (will show error later)
+            pass
+
+    # If output is specified and we're processing a single file
+    if args.output and is_single_file:
+        output_path = Path(args.output)
+        process_single_file(str(input_path), output_path, args.max_lines)
+        return
+
+    # If output is specified and we're processing a directory
+    elif args.output:
+        output_path = Path(args.output)
+
+        # Directory processing with PDF output
+        if output_path.suffix.lower() == '.pdf':
+            export_to_pdf(
+                output_path=output_path,
+                paths=[args.path],
+                include_hidden=args.all,
+                doc_only=args.docs,
+                code_only=args.code,
+                media_only=args.media,
+                extensions=extensions,
+                current_only=args.folder,
+                max_lines=args.max_lines,
+                top_n=top_n_value,
+                ignore_patterns=ignore_patterns
+            )
+            return
+
+        # Directory processing with text output
+        else:
+            try:
+                out_file = open(args.output, 'w', encoding='utf-8')
+            except IOError as e:
+                print(f"{ERROR_COLOR}Error opening output file: {e}{RESET}", file=sys.stderr)
+                sys.exit(1)
+    else:
+        out_file = None
 
     try:
         cat_all(
@@ -535,7 +899,8 @@ Configuration:
             current_only=args.folder,
             max_file_size=args.max_size,
             max_lines=args.max_lines,
-            top_n=top_n_value
+            top_n=top_n_value,
+            ignore_patterns=ignore_patterns
         )
     except KeyboardInterrupt:
         print(f"\n{ERROR_COLOR}Audit interrupted by user{RESET}")
@@ -547,3 +912,6 @@ Configuration:
         print_summary(top_n=top_n_value)
     else:
         print(f"{ERROR_COLOR}No files found matching the specified criteria{RESET}")
+
+if __name__ == "__main__":
+    main()
