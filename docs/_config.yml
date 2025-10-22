@@ -1,0 +1,32 @@
+title: "DAT · Dev Audit Tool"
+description: "Print a single file, working Dir, and/or sub-Dir's in Terminal context window. Or, Compile entire repo to a single .txt, .md, or .pdf. Cross-platform, fast, space-age."
+url: "https://justadudeinspace.github.io" 
+baseurl: "/dat"  
+
+markdown: kramdown
+theme: null
+plugins: []  
+
+# Build excludes
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - README.md
+
+# Top nav
+nav:
+  - text: Home
+    href: /
+  - text: Install
+    href: /install
+  - text: Usage
+    href: /usage
+  - text: FAQ
+    href: /faq
+  - text: Changelog
+    href: /changelog
+
+# Repo links
+repo_url: "https://github.com/Justadudeinspace/dat"
