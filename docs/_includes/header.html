@@ -1,0 +1,13 @@
+<header class="site-header">
+  <a class="brand" href="{{ site.baseurl }}/">
+    <img class="logo" src="{{ site.baseurl }}/assets/img/logo.png" alt="DAT" onerror="this.style.display='none'">
+    <span>DAT</span>
+  </a>
+
+  <nav class="site-nav">
+    {% for item in site.nav %}
+      <a href="{{ site.baseurl }}{{ item.href }}">{{ item.text }}</a>
+    {% endfor %}
+    <a class="repo" href="{{ site.repo_url }}" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</header>
