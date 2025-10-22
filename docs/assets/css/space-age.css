@@ -1,0 +1,88 @@
+:root{
+  --bg:#05060b; --fg:#dfe7ff; --muted:#9aa7c7;
+  --accent:#39e1ff; --accent2:#b86cff;
+  --card:#0b0e18; --grid:rgba(57,225,255,.12);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background: radial-gradient(1200px 800px at 80% -10%, rgba(184,108,255,.15), transparent),
+              radial-gradient(1000px 700px at -10% 20%, rgba(57,225,255,.12), transparent),
+              var(--bg);
+  color:var(--fg);
+  font-family:"Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height:1.6;
+}
+
+/* animated starfield */
+.starfield{
+  position:fixed; inset:0; pointer-events:none; z-index:-1;
+  background-image:url("../img/stars.svg");
+  background-size:600px;
+  opacity:.3;
+  animation:drift 120s linear infinite;
+}
+@keyframes drift{ from{background-position:0 0} to{background-position:2000px 1000px} }
+
+.site-header,.site-footer{
+  max-width:1050px; margin:0 auto; padding:18px 20px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.site-header{ position:sticky; top:0; backdrop-filter: blur(6px); background:rgba(5,6,11,.45); border-bottom:1px solid var(--grid) }
+.site-footer{ border-top:1px solid var(--grid); color:var(--muted); font-size:14px }
+
+.brand{ display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--fg); font-family:"Orbitron", sans-serif; letter-spacing:.06em }
+.brand .logo{ width:28px; height:28px; border-radius:8px }
+
+.site-nav a{
+  margin-left:14px; color:var(--muted); text-decoration:none; padding:6px 10px; border-radius:10px; border:1px solid transparent;
+}
+.site-nav a:hover{ color:var(--fg); border-color:var(--grid); background:rgba(184,108,255,.08) }
+.site-nav a.repo{ color:var(--accent); border-color:var(--grid) }
+
+.container{ max-width:1050px; margin:38px auto 64px; padding:0 20px }
+
+h1,h2,h3{ font-family:"Orbitron", sans-serif; letter-spacing:.04em }
+h1{ font-weight:800; font-size:36px; margin:0 0 8px }
+h2{ font-weight:700; font-size:22px; margin:32px 0 12px }
+p,li{ color:var(--fg) }
+p.lead{ color:#e9f4ff; font-size:18px; opacity:.95 }
+
+.card{
+  background:linear-gradient(180deg, rgba(11,14,24,.85), rgba(11,14,24,.65));
+  border:1px solid var(--grid);
+  border-radius:16px; padding:18px 18px 16px; margin:16px 0;
+  box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 12px 40px rgba(0,0,0,.45);
+}
+
+.btn{
+  display:inline-block; text-decoration:none; padding:10px 14px; border-radius:12px; border:1px solid var(--grid);
+  color:var(--bg); background:linear-gradient(90deg, var(--accent), var(--accent2));
+  font-weight:700; letter-spacing:.03em; box-shadow:0 8px 24px rgba(57,225,255,.25);
+}
+.btn:hover{ filter:brightness(1.05) }
+.btn.ghost{ background:transparent; color:var(--accent); border-color:var(--grid); box-shadow:none }
+
+pre, code{
+  font-family:"Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:14px;
+}
+pre{
+  background:var(--card); border:1px solid var(--grid); border-radius:12px; padding:14px; overflow:auto;
+}
+
+table{ width:100%; border-collapse:collapse; margin:12px 0 }
+th, td{ padding:10px 12px; border-bottom:1px solid var(--grid) }
+th{ text-align:left; color:#a6b3d4; font-weight:700; font-family:"Orbitron", sans-serif }
+
+a{ color:var(--accent) }
+hr{ border:0; border-top:1px solid var(--grid); margin:28px 0 }
+
+/* mobile */
+@media (max-width:720px){
+  .site-header,.site-footer{ padding:14px 16px }
+  .container{ margin:24px auto 48px }
+  h1{ font-size:28px }
+}
