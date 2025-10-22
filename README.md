@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/assets/dat-logo.png" alt="DAT v1.0.0" width="600">
+  <img src="./docs/assets/dat-logo-green.png" alt="DAT v1.0.0" width="600">
 </p>
 
 # Dev Audit Tool (`dat`) - v1.0.0
