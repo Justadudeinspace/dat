@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dat"
+version = "3.0.0-alpha.1"
+description = "Dev Audit Tool"
+authors = [{ name = "~JADIS" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "colorama>=0.4.6,<0.5.0",
+  "python-magic>=0.4.27,<1.0",
+  "reportlab>=4.0.8,<5.0",
+  "Pillow>=11.0.0,<12.0",
+  "rich>=13.7.0,<14.0",
+  "cryptography>=42.0.0,<43.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.3.0,<25.0",
+  "isort>=5.13.0,<6.0",
+  "mypy>=1.10.0,<2.0",
+  "pytest>=8.0.0,<9.0.0",
+  "pytest-cov>=4.1.0,<5.0",
+  "tox>=4.14.0,<5.0",
+  "build>=1.2.1,<2.0",
+]
+
+[project.scripts]
+dat = "dat.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+filterwarnings = ["ignore::UserWarning"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["dat"]

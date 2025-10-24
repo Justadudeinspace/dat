@@ -1,42 +1,53 @@
----
-layout: page
-title: Usage
+# DAT Usage Guide
 
----
+The Dev Audit Tool exposes a single `dat` command that accepts a repository path and a collection of
+flags to tailor the analysis. This document expands on the quickstart examples from the README.
 
-## Basics
+## Basic invocation
+
 ```bash
-dat                 # recurse current dir
-dat /path/to/dir    # audit a specific path
-
-Filters
-
-dat -c              # code only
-dat -d              # docs only
-dat -m              # media only
-dat -e py,js,md     # custom ext (also accepts .py,.js,.md)
-
-Ignore patterns
-
-dat -i .pyc __pycache__ .git node_modules
-
-Output
-
-dat -o audit.md     # markdown
-dat -o audit.txt    # text
-dat -o repo.pdf     # PDF
-
-Single file (with or without extension)
-
-dat -s dat_pdf
-dat dat_pdf -o dat_pdf.md
-dat dat_pdf -o dat_pdf.pdf
-
-Limits & summary
-
-dat --max-lines 200
-dat --max-size 5242880
-dat --top-n 10
+dat . --report audit.json
 ```
 
----
+The command above scans the current directory, honours the default safe thresholds (10 MiB / 1000
+lines), and writes a deterministic JSON report to `audit.json`.
+
+## Ignoring files
+
+Provide `-i/--ignore` multiple times to suppress paths via glob patterns:
+
+```bash
+dat /src/project --ignore "node_modules" --ignore "*.pyc"
+```
+
+The ignore logic applies to directories and files alike.
+
+## Safe vs deep mode
+
+`--safe` is enabled automatically. For large binary heavy repositories, disable it or enable `--deep`
+which performs an unrestricted scan:
+
+```bash
+# Disable safe mode but keep default thresholds
+dat repo --no-safe
+
+# Fully deep scan
+dat repo --deep --no-safe
+```
+
+Deep mode reads every file regardless of size or line count and is best paired with CI runners.
+
+## Diffing reports
+
+Use `--diff` to compare the current run with a previous JSON report:
+
+```bash
+dat repo --report audit.json --diff baseline.json
+```
+
+When differences are detected, DAT prints a warning to stdout. Store the generated `audit.json`
+artifacts in CI to establish baselines.
+
+## Verbose output
+
+Add `-v/--verbose` to log summary statistics at the end of the run.

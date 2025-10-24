@@ -37,3 +37,7 @@ pip-wheel-metadata/
 coverage/
 htmlcov/
 trust
+.pytest_cache/
+.mypy_cache/
+reports/
+*.asc

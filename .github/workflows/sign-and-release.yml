@@ -1,0 +1,45 @@
+name: Sign and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Build distributions
+        run: |
+          python -m build
+      - name: Generate reports
+        run: |
+          python -m dat.cli . --report release-audit.json --output release-audit.pdf --sign || true
+          python -m dat.cli . --report release-audit.md
+      - name: Sign artifacts
+        if: secrets.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for file in dist/* release-audit.*; do
+            gpg --batch --yes --passphrase "$GPG_PASSPHRASE" --armor --detach-sign "$file"
+          done
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+            release-audit.*
+            release-audit.*.asc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

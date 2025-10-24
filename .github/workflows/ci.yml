@@ -2,27 +2,53 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: ["main", "work", "develop"]
   pull_request:
-    branches: [ main ]
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
-      - name: Run tests
+          pip install -e .[dev]
+      - name: Lint
         run: |
-          pytest -q || true
-      - name: Lint (optional)
+          black --check src tests
+          isort --check src tests
+          mypy src
+      - name: Tests
         run: |
-          pip install flake8 || true
-          flake8 || true
+          pytest --cov=dat --cov-report=xml
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  pdf-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Generate PDF sample
+        run: |
+          python -m dat.cli . --report sample.json --output sample.pdf
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-smoke
+          path: |
+            sample.json
+            sample.pdf
