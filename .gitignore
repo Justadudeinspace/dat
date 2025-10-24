@@ -8,36 +8,291 @@ __pycache__/
 .eggs/
 dist/
 build/
+*.egg
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.python-version
 
-# Virtual envs
+# Virtual environments
 .venv/
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
+# IDE and editor files
 .vscode/
 .idea/
-*.swo
 *.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.sublime-*
+*.komodoproject
+*.komodoproject.user
+*.sublime-workspace
 
-# Logs and outputs
-*.log
-audit*.txt
-
-# Dependency files
-pip-wheel-metadata/
-.python-version
-
-# Generated artifacts
-coverage/
-htmlcov/
-trust
-.pytest_cache/
-.mypy_cache/
+# DAT specific
+# Reports and outputs
 reports/
+audit*.json
+audit*.jsonl
+audit*.pdf
+audit*.md
 *.asc
+dat-report*
+security-scan*
+compliance-*
+evidence-*
+
+# Configuration backups
+*.bak
+*.backup
+config.ini.backup
+.datconfig.backup
+
+# Log files
+*.log
+logs/
+dat.log
+audit.log
+debug.log
+strace.log
+performance.log
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+.cache/
+.tmp/
+
+# Security and sensitive files
+# Note: These should not be in version control but included for safety
+secrets.txt
+*.key
+*.pem
+*.cert
+*.crt
+*.pub
+*.priv
+*.gpg
+*.pgp
+*.asc
+*.sig
+
+# LRC integration files
+.lrc-build.json
+.lrc-audit.json
+lrc-config.backup.json
+
+# Test and development artifacts
+test-reports/
+junit-*.xml
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+
+# Package and distribution
+*.whl
+*.tar.gz
+*.egg
+dist/
+build/
+sdist/
+wheels/
+
+# Platform specific
+# Windows
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Linux
+*~
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation builds
+docs/_build/
+docs/_site/
+site/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Docker
+.dockerignore
+Dockerfile.dev
+
+# CI/CD
+.circleci/
+.github/workflows/*.backup
+.gitlab-ci.yml.backup
+
+# DAT development
+# Development configuration overrides
+.devconfig
+.local.config.ini
+
+# Performance profiles
+profile.stats
+performance.json
+memory_profile.out
+
+# Backup files from edits
+*.orig
+*.rej
+*~
+
+# Large files that shouldn't be in version control
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+*.iso
+*.dmg
+
+# Binary files (generally should not be in version control)
+*.exe
+*.dll
+*.so
+*.dylib
+*.class
+*.jar
+*.war
+*.ear
+
+# Media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.avi
+*.mov
+*.mp4
+*.mp3
+*.wav
+*.flac
+
+# Archives and packages
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# DAT internal
+# Cache directories
+.cache/
+.dat-cache/
+
+# Lock files (platform specific)
+package-lock.json
+yarn.lock
+Pipfile.lock
+poetry.lock
+composer.lock
+Gemfile.lock
+
+# Environment files (should be in .env but included for safety)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Backup of environment files
+.env.backup
+.env.local.backup
+
+# DAT configuration backups
+.config.backup/
+.datconfig.backup
+lrc-config.backup.json
+
+# Test data and fixtures
+test-data/
+fixtures/
+samples/
+
+# Benchmark results
+benchmarks/
+*.bench
+speed*.json
+
+# FUSE mounts
+.fuse_hidden*
+
+# Snapshot files
+*.snap
+
+# Temporary system files
+.temporary
+
+# Certificate files
+*.cer
+*.crt
+*.der
+*.p7b
+*.p7c
+*.p12
+*.pfx
+
+# Security scan results (should be generated, not stored)
+*.sarif
+*.junit.xml
+security-results/
+compliance-evidence/
+
+# DAT development testing
+test-artifacts/
+scan-results/
+validation-reports/
+
+# Backup of important files (keep but don't track)
+backup/
+*.backup
+*.old
+*.previous
+
+# End of .gitignore

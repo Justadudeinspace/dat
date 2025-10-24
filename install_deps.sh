@@ -2,308 +2,456 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-echo "=== DAT Cross-Platform Installer ==="
+# Colors for better output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
 
-# Determine Python command - prefer python3 but fall back to python if it's python3
-PYTHON_CMD=""
-if command -v python3 >/dev/null 2>&1; then
-    PYTHON_CMD="python3"
-    echo "[+] Using python3"
-elif command -v python >/dev/null 2>&1; then
-    # Check if 'python' is actually python3
-    if python -c "import sys; print(sys.version_info.major)" 2>/dev/null | grep -q "3"; then
-        PYTHON_CMD="python"
-        echo "[+] Using python (version 3)"
-    else
-        echo "[-] Python 3 is required but not found as 'python3' or 'python'"
-        exit 1
+# Logging functions
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_debug() { echo -e "${CYAN}[DEBUG]${NC} $1"; }
+
+# Print banner
+print_banner() {
+    echo -e "${CYAN}"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║                   DAT Installer v3.0.0-alpha.1               ║"
+    echo "║         Enterprise Security Scanning Tool                    ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+# Check if running as root
+check_root() {
+    if [[ $EUID -eq 0 ]]; then
+        log_warning "Running as root user - this is not recommended"
+        read -p "Continue anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     fi
-else
-    echo "[-] Python 3 is not installed"
-    exit 1
-fi
+}
 
-echo "[+] Installing Python dependencies from requirements.txt..."
-
-# Check if requirements.txt exists
-if [[ -f "requirements.txt" ]]; then
-    echo "[+] Installing packages from requirements.txt..."
-    $PYTHON_CMD -m pip install -r requirements.txt
-else
-    echo "[-] requirements.txt not found!"
-    echo "[+] Installing dependencies directly..."
-    $PYTHON_CMD -m pip install python-magic reportlab Pillow rich cryptography
-fi
-
-# --- Detect OS / environment ---
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-pkg_manager=""
-font_installed=0
-magic_installed=0
-
-# Termux first (Android)
-if [[ -n "${PREFIX:-}" && "$PREFIX" == "/data/data/com.termux/files/usr" ]]; then
-    echo "[+] Detected Termux on Android"
-    pkg_manager="pkg"
-    pkg update -y
-    pkg install -y fontconfig fonts-dejavu python3 libmagic
-    fc-cache -fv > /dev/null 2>&1 || true
-    font_installed=1
-    magic_installed=1
-fi
-
-# Linux (including WSL2)
-if [[ "$os" == "linux" ]]; then
-    if grep -qi microsoft /proc/version 2>/dev/null || [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
-        echo "[+] Detected WSL2 (Windows Subsystem for Linux)"
+# Detect Python with version checking
+detect_python() {
+    local python_cmd=""
+    
+    # Try python3 first
+    if command -v python3 >/dev/null 2>&1; then
+        python_version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "unknown")
+        if python3 -c "import sys; sys.exit(0) if sys.version_info >= (3, 8) else sys.exit(1)" 2>/dev/null; then
+            python_cmd="python3"
+            log_success "Found Python 3: $python_version"
+        else
+            log_error "Python 3.8+ required, found $python_version"
+            return 1
+        fi
+    # Fall back to python
+    elif command -v python >/dev/null 2>&1; then
+        python_version=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "unknown")
+        if python -c "import sys; sys.exit(0) if sys.version_info >= (3, 8) else sys.exit(1)" 2>/dev/null; then
+            python_cmd="python"
+            log_success "Found Python 3: $python_version"
+        else
+            log_error "Python 3.8+ required, found $python_version"
+            return 1
+        fi
     else
-        echo "[+] Detected Linux"
+        log_error "Python 3.8+ is not installed"
+        log_info "Download from: https://python.org/downloads/"
+        return 1
     fi
     
-    if command -v apt-get >/dev/null 2>&1; then
-        pkg_manager="apt-get"
-        echo "[+] Using apt-get package manager"
-        sudo apt-get update -y
-        sudo apt-get install -y fonts-dejavu-core fontconfig libmagic1 libmagic-dev
-        sudo fc-cache -fv > /dev/null 2>&1 || true
-        font_installed=1
-        magic_installed=1
-        
-    elif command -v dnf >/dev/null 2>&1; then
-        pkg_manager="dnf"
-        echo "[+] Using dnf package manager"
-        sudo dnf install -y dejavu-sans-mono-fonts fontconfig file-devel file-libs
-        sudo fc-cache -fv > /dev/null 2>&1 || true
-        font_installed=1
-        magic_installed=1
-        
-    elif command -v yum >/dev/null 2>&1; then
-        pkg_manager="yum"
-        echo "[+] Using yum package manager"
-        sudo yum install -y dejavu-sans-mono-fonts fontconfig file-devel file-libs
-        sudo fc-cache -fv > /dev/null 2>&1 || true
-        font_installed=1
-        magic_installed=1
-        
-    elif command -v pacman >/dev/null 2>&1; then
-        pkg_manager="pacman"
-        echo "[+] Using pacman package manager"
-        sudo pacman -Sy --noconfirm ttf-dejavu fontconfig file
-        sudo fc-cache -fv > /dev/null 2>&1 || true
-        font_installed=1
-        magic_installed=1
-        
-    elif command -v zypper >/dev/null 2>&1; then
-        pkg_manager="zypper"
-        echo "[+] Using zypper package manager"
-        sudo zypper install -y dejavu-fonts fontconfig file file-devel
-        sudo fc-cache -fv > /dev/null 2>&1 || true
-        font_installed=1
-        magic_installed=1
-        
-    else
-        echo "[-] Unknown Linux distro — please install dependencies manually."
-        echo "    Ubuntu/Debian: sudo apt-get install fonts-dejavu-core fontconfig libmagic1 libmagic-dev"
-        echo "    Fedora/RHEL: sudo dnf install dejavu-sans-mono-fonts fontconfig file-devel file-libs"
-        echo "    Arch: sudo pacman -S ttf-dejavu fontconfig file"
-    fi
-fi
+    echo "$python_cmd"
+}
 
-# macOS
-if [[ "$os" == "darwin" ]]; then
-    echo "[+] Detected macOS"
+# Install Python dependencies
+install_python_deps() {
+    local python_cmd="$1"
+    log_info "Installing Python dependencies..."
+    
+    # Upgrade pip first
+    log_info "Upgrading pip..."
+    $python_cmd -m pip install --upgrade pip --quiet
+    
+    if [[ -f "requirements.txt" ]]; then
+        log_info "Installing from requirements.txt..."
+        if $python_cmd -m pip install -r requirements.txt --quiet; then
+            log_success "Python dependencies installed from requirements.txt"
+        else
+            log_error "Failed to install from requirements.txt"
+            return 1
+        fi
+    else
+        log_warning "requirements.txt not found, installing core dependencies..."
+        local core_deps=(
+            "rich>=13.0.0"
+            "cryptography>=41.0.0"
+            "reportlab>=4.0.0"
+            "python-magic>=0.4.27"
+            "Pillow>=10.0.0"
+            "colorama>=0.4.6"
+        )
+        
+        if $python_cmd -m pip install "${core_deps[@]}" --quiet; then
+            log_success "Core Python dependencies installed"
+        else
+            log_error "Failed to install core dependencies"
+            return 1
+        fi
+    fi
+}
+
+# Detect platform and install system dependencies
+install_system_deps() {
+    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    local platform_specific=0
+    
+    log_info "Detected platform: $os"
+    
+    case "$os" in
+        linux*)
+            install_linux_deps
+            platform_specific=1
+            ;;
+        darwin*)
+            install_macos_deps
+            platform_specific=1
+            ;;
+        mingw*|cygwin*|msys*)
+            install_windows_deps
+            platform_specific=1
+            ;;
+        *)
+            log_warning "Unsupported platform: $os"
+            log_info "You may need to install dependencies manually"
+            ;;
+    esac
+    
+    return $platform_specific
+}
+
+# Linux distribution detection and package installation
+install_linux_deps() {
+    local distro=""
+    local install_cmd=""
+    local font_pkg=""
+    local magic_pkg=""
+    
+    # Detect distribution
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        distro=$ID
+    fi
+    
+    # Check for WSL
+    if grep -qi "microsoft" /proc/version 2>/dev/null || [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+        log_info "Detected WSL2 (Windows Subsystem for Linux)"
+    fi
+    
+    case "$distro" in
+        ubuntu|debian|linuxmint)
+            log_info "Detected Ubuntu/Debian-based system"
+            install_cmd="sudo apt-get install -y"
+            font_pkg="fonts-dejavu-core fontconfig"
+            magic_pkg="libmagic1 libmagic-dev file"
+            sudo apt-get update -y --quiet
+            ;;
+        fedora|rhel|centos)
+            log_info "Detected Fedora/RHEL-based system"
+            install_cmd="sudo dnf install -y"
+            font_pkg="dejavu-sans-mono-fonts fontconfig"
+            magic_pkg="file-devel file-libs"
+            ;;
+        arch|manjaro)
+            log_info "Detected Arch Linux-based system"
+            install_cmd="sudo pacman -S --noconfirm"
+            font_pkg="ttf-dejavu fontconfig"
+            magic_pkg="file"
+            ;;
+        opensuse*)
+            log_info "Detected openSUSE-based system"
+            install_cmd="sudo zypper install -y"
+            font_pkg="dejavu-fonts fontconfig"
+            magic_pkg="file file-devel"
+            ;;
+        *)
+            log_warning "Unknown Linux distribution: $distro"
+            show_manual_instructions
+            return 1
+            ;;
+    esac
+    
+    # Install packages
+    log_info "Installing system dependencies..."
+    if $install_cmd $font_pkg $magic_pkg 2>/dev/null; then
+        log_success "System dependencies installed"
+        
+        # Update font cache
+        if command -v fc-cache >/dev/null 2>&1; then
+            sudo fc-cache -fv > /dev/null 2>&1 && log_success "Font cache updated"
+        fi
+        return 0
+    else
+        log_error "Failed to install system dependencies"
+        show_manual_instructions
+        return 1
+    fi
+}
+
+# macOS dependency installation
+install_macos_deps() {
+    log_info "Detected macOS"
+    
     if command -v brew >/dev/null 2>&1; then
-        echo "[+] Using Homebrew package manager"
-        brew tap homebrew/cask-fonts
-        brew install --cask font-dejavu-sans-mono
-        brew install libmagic
-        # On macOS, fonts are automatically available after installation
-        font_installed=1
-        magic_installed=1
+        log_info "Using Homebrew package manager"
+        
+        # Install libmagic
+        if brew install libmagic --quiet; then
+            log_success "libmagic installed via Homebrew"
+        else
+            log_error "Failed to install libmagic"
+            return 1
+        fi
+        
+        # Install fonts (optional on macOS as system fonts may suffice)
+        log_info "Installing DejaVu fonts..."
+        brew tap homebrew/cask-fonts --quiet
+        if brew install --cask font-dejavu-sans-mono --quiet; then
+            log_success "DejaVu fonts installed"
+        else
+            log_warning "Font installation failed, but DAT should work with system fonts"
+        fi
+        return 0
     else
-        echo "[-] Homebrew not found. Please install it from https://brew.sh and rerun."
-        echo "    Alternatively, install dependencies manually:"
-        echo "    Download fonts: https://dejavu-fonts.github.io/Download.html"
-        echo "    Install libmagic: brew install libmagic"
+        log_warning "Homebrew not found"
+        log_info "Install Homebrew from: https://brew.sh"
+        log_info "Or install manually:"
+        log_info "  - Download fonts: https://dejavu-fonts.github.io/"
+        log_info "  - Install libmagic: brew install libmagic"
+        return 1
     fi
-fi
+}
 
-# Windows (native, not WSL)
-if [[ "$os" =~ ^mingw || "$os" =~ ^cygwin || "$os" == "msys" ]]; then
-    echo "[+] Detected Windows (Git Bash / MSYS2 / Cygwin)"
-    echo "[*] Installing python-magic-bin for Windows compatibility..."
-    $PYTHON_CMD -m pip install python-magic-bin
-    echo "[*] Please install DejaVu fonts manually:"
-    echo "    Download from: https://dejavu-fonts.github.io/Download.html"
-    echo "    Or install via Chocolatey: choco install dejavufonts"
-    magic_installed=1
-fi
+# Windows dependency installation
+install_windows_deps() {
+    log_info "Detected Windows (Git Bash / MSYS2 / Cygwin)"
+    
+    # Install Windows-compatible python-magic
+    log_info "Installing Windows-compatible file detection..."
+    if $PYTHON_CMD -m pip install python-magic-bin --quiet; then
+        log_success "Windows file detection installed"
+    else
+        log_error "Failed to install Windows file detection"
+        return 1
+    fi
+    
+    log_info "For optimal PDF generation, install DejaVu fonts:"
+    log_info "  Download: https://dejavu-fonts.github.io/Download.html"
+    log_info "  Or use Chocolatey: choco install dejavufonts"
+    return 0
+}
 
-# Final checks and verification
-echo "[+] Verifying installation..."
+# Show manual installation instructions
+show_manual_instructions() {
+    log_info "Manual installation instructions:"
+    log_info "Ubuntu/Debian: sudo apt-get install fonts-dejavu-core fontconfig libmagic1 libmagic-dev"
+    log_info "Fedora/RHEL:   sudo dnf install dejavu-sans-mono-fonts fontconfig file-devel file-libs"
+    log_info "Arch Linux:    sudo pacman -S ttf-dejavu fontconfig file"
+    log_info "macOS:         brew install libmagic && brew install --cask font-dejavu-sans-mono"
+}
 
-# Check Python dependencies using direct import method
-echo "[+] Verifying Python dependencies..."
-$PYTHON_CMD -c "
+# Verify Python dependencies
+verify_python_deps() {
+    local python_cmd="$1"
+    log_info "Verifying Python dependencies..."
+    
+    $python_cmd -c "
 import sys
+import importlib.util
 
-# Define required packages with their import names and pip names
-required_packages = [
-    ('python-magic', 'magic'),
-    ('reportlab', 'reportlab'),
-    ('Pillow', 'PIL'),
-    ('rich', 'rich'),
-    ('cryptography', 'cryptography'),
-]
+# Required packages with minimum versions
+required_packages = {
+    'rich': '13.0.0',
+    'cryptography': '41.0.0', 
+    'reportlab': '4.0.0',
+    'python-magic': '0.4.27',
+    'Pillow': '10.0.0',
+    'colorama': '0.4.6'
+}
 
-print('Checking required packages:')
+print('🔍 Checking Python dependencies...')
 all_ok = True
 
-for pip_name, import_name in required_packages:
+for package, min_version in required_packages.items():
     try:
-        # Try to import the package
-        __import__(import_name)
-        # Try to get version if possible
+        # Try to import
+        spec = importlib.util.find_spec(package.split('-')[-1])
+        if spec is None:
+            print(f'❌ {package}: NOT INSTALLED')
+            all_ok = False
+            continue
+            
+        # Import successfully
+        module = __import__(package.split('-')[-1])
+        
+        # Try to get version
         try:
-            if import_name == 'magic':
-                import magic
-                version = 'unknown (import ok)'
-            elif import_name == 'configparser':
-                import configparser
-                version = 'unknown (import ok)'
-            elif import_name == 'reportlab':
-                from reportlab import __version__
-                version = __version__
-            elif import_name == 'colorama':
-                import colorama
-                version = colorama.__version__
-            elif import_name == 'PIL':
-                from PIL import __version__
-                version = __version__
-            elif import_name == 'PyPDF2':
-                import PyPDF2
-                version = PyPDF2.__version__
-            else:
-                version = 'unknown (import ok)'
-            print(f'[✓] {pip_name} - version {version}')
-        except (AttributeError, ImportError):
-            print(f'[✓] {pip_name} - imported successfully')
+            version = getattr(module, '__version__', 'unknown')
+            status = '✅' if version != 'unknown' else '⚠️'
+            print(f'{status} {package}: {version}')
+            
+            # Check version if we can
+            if version != 'unknown' and version < min_version:
+                print(f'   ⚠️  Version {version} < {min_version}, consider upgrading')
+                
+        except AttributeError:
+            print(f'⚠️  {package}: imported (version unknown)')
+            
     except ImportError as e:
-        print(f'[-] {pip_name} - failed to import: {e}')
+        print(f'❌ {package}: IMPORT FAILED - {e}')
         all_ok = False
 
-# Test specific functionality
-print('\nTesting functionality:')
+# Test functionality
+print('\n🧪 Testing functionality...')
 try:
     import magic
-    # Test basic magic functionality
-    try:
-        magic.from_buffer(b'test')
-        print('[✓] python-magic functionality verified')
-    except Exception as e:
-        print(f'[!] python-magic import ok but functionality issue: {e}')
-except ImportError as e:
-    print('[-] python-magic not available')
+    # Test basic functionality
+    magic.from_buffer(b'test')
+    print('✅ python-magic: functional')
+except Exception as e:
+    print(f'❌ python-magic: {e}')
 
 try:
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfbase import pdfmetrics
-    print('[✓] reportlab PDF functionality verified')
-except ImportError as e:
-    print('[-] reportlab PDF functionality not available')
+    print('✅ reportlab: PDF functionality OK')
+except Exception as e:
+    print(f'❌ reportlab: {e}')
 
 try:
-    import configparser
-    print('[✓] configparser verified')
-except ImportError as e:
-    print('[-] configparser not available')
+    import cryptography
+    print('✅ cryptography: encryption ready')
+except Exception as e:
+    print(f'❌ cryptography: {e}')
 
 try:
-    import colorama
-    colorama.init()
-    print('[✓] colorama verified')
-except ImportError as e:
-    print('[-] colorama not available')
-
-try:
-    from PIL import Image
-    print('[✓] Pillow (PIL) verified')
-except ImportError as e:
-    print('[-] Pillow not available')
-
-try:
-    import PyPDF2
-    print('[✓] PyPDF2 verified')
-except ImportError as e:
-    print('[-] PyPDF2 not available')
+    from rich.console import Console
+    print('✅ rich: terminal output ready')
+except Exception as e:
+    print(f'❌ rich: {e}')
 
 if not all_ok:
-    print('\n[!] Some dependencies are missing. Please run:')
-    print('    pip install -r requirements.txt')
+    print('\n💥 Some dependencies failed verification')
     sys.exit(1)
 else:
-    print('\n[✓] All Python dependencies verified successfully!')
+    print('\n🎉 All Python dependencies verified!')
 "
+}
 
-# Check if fontconfig is available and test DejaVu font
-echo "[+] Verifying font installation..."
-if command -v fc-list >/dev/null 2>&1; then
-    if fc-list | grep -i "dejavu" >/dev/null 2>&1; then
-        echo "[✓] DejaVu fonts verified as installed"
+# Verify system dependencies
+verify_system_deps() {
+    log_info "Verifying system dependencies..."
+    
+    # Check file command (libmagic)
+    if command -v file >/dev/null 2>&1; then
+        if echo "test" | file - >/dev/null 2>&1; then
+            log_success "file command (libmagic): functional"
+        else
+            log_warning "file command available but has issues"
+        fi
     else
-        echo "[-] DejaVu fonts not found via fontconfig. They may need manual installation."
+        log_warning "file command (libmagic) not available"
     fi
-else
-    echo "[*] fontconfig not available, skipping font verification"
-fi
-
-# Check libmagic installation
-echo "[+] Verifying libmagic installation..."
-if command -v file >/dev/null 2>&1; then
-    echo "[✓] file command (libmagic) available"
-    # Test file command
-    if echo "test" | file - >/dev/null 2>&1; then
-        echo "[✓] libmagic functionality verified"
+    
+    # Check fonts
+    if command -v fc-list >/dev/null 2>&1; then
+        if fc-list | grep -i "dejavu" >/dev/null 2>&1; then
+            log_success "DejaVu fonts: installed"
+        else
+            log_warning "DejaVu fonts not found via fontconfig"
+        fi
     else
-        echo "[!] file command available but has issues"
+        log_info "fontconfig not available, skipping font verification"
     fi
-else
-    echo "[-] file command (libmagic) not available"
-fi
+}
 
-# Test the dat script directly
-echo "[+] Testing dat script..."
-if [[ -f "dat" ]]; then
-    if $PYTHON_CMD dat --version >/dev/null 2>&1; then
-        echo "[✓] dat script is functional"
-        echo "[+] Version info:"
-        $PYTHON_CMD dat --version
+# Make dat executable and test
+setup_dat() {
+    local python_cmd="$1"
+    
+    # Make executable if dat file exists
+    if [[ -f "dat" ]]; then
+        log_info "Making dat script executable..."
+        chmod +x dat
+        log_success "dat script is now executable"
     else
-        echo "[-] dat script has issues"
+        log_warning "dat script not found in current directory"
+        return 1
     fi
-else
-    echo "[-] dat script not found in current directory"
-fi
+    
+    # Test basic functionality
+    log_info "Testing DAT installation..."
+    if $python_cmd dat --version >/dev/null 2>&1; then
+        local version=$($python_cmd dat --version 2>/dev/null || echo "unknown")
+        log_success "DAT functional - version $version"
+        return 0
+    else
+        log_error "DAT functionality test failed"
+        return 1
+    fi
+}
 
-echo ""
-echo "=== Installation Summary ==="
-if [[ $font_installed -eq 1 ]]; then
-    echo "[✓] Font installation attempted for your platform"
-else
-    echo "[-] Could not detect OS automatically for font installation"
-fi
+# Main installation function
+main() {
+    print_banner
+    check_root
+    
+    log_info "Starting DAT installation..."
+    
+    # Detect Python
+    PYTHON_CMD=$(detect_python) || exit 1
+    
+    # Install Python dependencies
+    install_python_deps "$PYTHON_CMD" || exit 1
+    
+    # Install system dependencies
+    if install_system_deps; then
+        log_success "Platform-specific dependencies handled"
+    else
+        log_warning "Platform-specific dependencies may need manual installation"
+    fi
+    
+    # Verify installations
+    verify_python_deps "$PYTHON_CMD" || exit 1
+    verify_system_deps
+    
+    # Setup DAT
+    setup_dat "$PYTHON_CMD" || exit 1
+    
+    # Final success message
+    echo
+    log_success "🎉 DAT installation completed successfully!"
+    echo
+    log_info "🚀 Quick Start:"
+    log_info "  dat                          # Scan current directory"
+    log_info "  dat --deep                   # Deep scan (includes binaries)"
+    log_info "  dat --pdf report.pdf         # Generate PDF report"
+    log_info "  dat -f src                   # Scan only src folder"
+    log_info "  dat -s main.py               # Scan only main.py file"
+    log_info "  dat --help                   # Show all options"
+    echo
+    log_info "📖 Documentation: https://github.com/your-org/dat"
+    log_info "🐛 Issues: https://github.com/your-org/dat/issues"
+    echo
+}
 
-if [[ $magic_installed -eq 1 ]]; then
-    echo "[✓] libmagic installation attempted for your platform"
-else
-    echo "[-] Could not install libmagic automatically"
-fi
-
-echo "[✓] Python dependencies installed from requirements.txt"
-echo "[*] Next steps:"
-echo "    1. Run: chmod +x dat"
-echo "    2. Test: dat --version"
-echo "    3. Use: dat -sp file.py (to print single file)"
-echo "    4. Use: dat -i .pyc __pycache__ -o output.pdf (ignore patterns + PDF output)"
-echo ""
-echo "[✓] DAT installation completed!"
+# Run main function
+main "$@"

@@ -1,119 +1,159 @@
-# 🌀 CHANGELOG  
-> *"Every revision is a ripple — a trace of thought made tangible."*  
-> — ~JADIS
+# Changelog
 
-All notable changes to this project will be documented in this file.  
-This format follows the conventions of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes to DAT (Dev Audit Tool) are documented in this file.
 
----
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-### 🔮 Planned
-- Add interactive TUI mode (`dat --tui`) for live file previews.
-- Support `.env` file parsing for configuration.
-- Extend syntax highlighting for `.yaml`, `.toml`, `.json`.
-- Add `--json` and `--csv` output export modes.
-- Integrate with `watchdog` for live project monitoring (`dat --watch`).
-- Include optional GPT/Gemini “summary” mode to describe codebases in natural language.
+## [3.0.0-alpha.1] - 2024-05-25
 
----
+### 🚀 Added
+- **Enterprise Architecture**: Adopted modular `src/dat` layout with dedicated packages:
+  - `scanner/` - High-performance file scanning engine
+  - `rules/` - Policy evaluation and violation detection
+  - `integration/` - Enterprise feature integration
+  - `pdf/` - Professional report generation
+  - `logging/` - Encrypted audit system
+  - `cli/` - Command-line interface
 
-## [1.0.0] — 2025-10-17  
-### 🌟 Initial Release — “Big Picture”
+- **Security Features**:
+  - `--from-lrc` - LRC (License and Regulatory Compliance) metadata integration
+  - `--sign` - GPG artifact signing for report integrity
+  - Encrypted audit logging to `~/.config/dat/auditlog.jsonl`
+  - Path traversal protection and file validation
 
-This marks the **first full release** of `dat` — the **Dev Audit Tool** —  
-a system-wide visualizer and analyzer designed for transparency, insight, and creative clarity.
+- **Scanning Modes**:
+  - `--safe/--no-safe` - Safe scanning mode with configurable limits
+  - `--deep` - Deep scan including binary files and no size limits
+  - `--max-lines` and `--max-size` - Configurable resource limits
 
-#### Added
-- Core CLI (`dat`) with recursive directory scanning.
-- File type filters:
-  - `-a` : include all (visible + hidden)
-  - `-v` : visible files only
-  - `-d` : documentation only
-  - `-c` : code files only
-  - `-e EXT` : specific extension filter
-  - `-f` : standing directory only
-- File summary and global statistics:
-  - Per-file line and byte counts.
-  - Aggregated totals at end of run.
-  - Top N largest/longest files displayed in summary table.
-- Config system:
-  - Global config (`~/.datconfig`)
-  - Local project config (`.datconfig`)
-  - Full YAML/INI support.
-- Environment variable overrides (`DAT_PATH`, `DAT_MAX_LINES`, etc.)
-- Optional colored terminal output with auto-detection.
-- Output to file (`-o` or `--output`).
-- `bootstrap.sh` for automated setup.
-- `sample_output.txt` template for quick verification.
-- Test suite:
-  - `test_core.py` for scanning logic.
-  - `test_cli.py` for argument parsing and integration flow.
-- Documentation suite:
-  - `README.md`
-  - `USAGE.md`
-  - `CONFIG.md`
-  - `CHANGELOG.md`
-  - `/docs` directory structure pre-built.
+- **Reporting System**:
+  - `--report` - Unified report generation with format auto-detection
+  - Atomic file writes for all output formats
+  - Standardized JSON, Markdown, and PDF outputs
+  - Digital fingerprints for report verification
 
-#### Fixed
-- Stabilized path resolution across OSes.
-- Correctly handles Unicode and long filenames.
-- Prevents recursion loops from symlinks.
-- Graceful exit when permission errors occur.
+- **Enterprise Integration**:
+  - LRC metadata merging from `~/.config/lrc/dat_integration.json`
+  - Automatic `.lrc-audit.json` emission with scan results
+  - Compliance framework support (SOC2, GDPR, HIPAA)
+  - Custom rule engine with severity levels
 
-#### Known Issues
-- Scanning extremely large repos (>10k files) may slow down summary rendering.
-- No current progress bar for long audits.
-- Windows path coloring may behave inconsistently under `cmd.exe`.
+- **CLI Enhancements**:
+  - `--diff` - Compare current scan with previous JSON report
+  - `--verbose` - Detailed progress and debug information
+  - `--interactive` - Confirmation prompts for sensitive operations
+  - File selection options: `-f/--folder`, `-s/--single-file`, `-a/--all`
 
----
+- **Cross-Platform Improvements**:
+  - Enhanced Windows support with python-magic-bin
+  - macOS optimization with Homebrew integration
+  - Linux distribution-specific package management
+  - Termux (Android) compatibility
 
-## [0.9.0] — 2025-10-14  
-### 🧩 Protoform Build
+### 🔧 Changed
+- **Architecture**: Refactored from monolithic to modular enterprise architecture
+- **Performance**: Async scanning engine for improved large repository performance
+- **Output**: Standardized report formats with consistent metadata
+- **Security**: Enhanced file validation and security checks
+- **Documentation**: Comprehensive guides and enterprise documentation
 
-Early experiment showcasing the recursive file scanning and auto-printing logic.  
-Served as the proof of concept that inspired full CLI evolution.
+### 🐛 Fixed
+- File encoding detection for international character sets
+- Binary file handling in safe mode
+- Path resolution across different platforms
+- Permission handling for various file systems
+- Memory optimization for large file processing
 
-#### Added
-- Recursive file walker.
-- Basic `cat -a` style full-content print.
-- Minimal CLI prototype (`cat.py` → `dat`).
-- Preliminary color and indentation logic.
+### 🛡️ Security
+- Implemented Fernet encryption for audit logs
+- Added GPG signature verification for LRC includes
+- Enhanced path traversal protection
+- File extension validation for security
+- Secure temporary file handling
 
-#### Removed
-- Experimental debug flags (`--x` and `--xx`).
-- Old stdout printer replaced with rich-style output manager.
+### 📚 Documentation
+- Enterprise usage guides and examples
+- API documentation for extension development
+- Security best practices
+- Compliance framework integration guides
+- Troubleshooting and debugging guides
 
----
+### 🔨 Deprecated
+- Legacy command-line arguments (replaced with unified `--report`)
+- Old configuration file format (migrated to INI-style)
+- Basic scanning mode (superseded by safe/deep modes)
 
-## [0.1.0] — 2025-10-10  
-### 🌱 The Seed
+### 🗑️ Removed
+- Unmaintained legacy modules
+- Deprecated output formats
+- Platform-specific hacks (replaced with cross-platform solutions)
 
-The first prototype idea:  
-*"What if `cat` could see everything?"*  
-This commit held the earliest glimmer of what became the **Big Picture Audit Tool**.
-
----
-
-## 🧭 Versioning
-
-This project adheres to **Semantic Versioning** (SemVer):  
-`MAJOR.MINOR.PATCH` — meaning:
-
-- **MAJOR** for incompatible or architectural changes,  
-- **MINOR** for backward-compatible feature additions,  
-- **PATCH** for bug fixes and refinements.
+### ⚠️ Known Issues
+- Large repository scans may require tuning of memory limits
+- Some edge cases in complex symbolic link structures
+- PDF generation font fallback on some Windows systems
 
 ---
 
-## 🕊️ Legacy Note
+## [2.1.0] - 2024-03-15
 
-> *"A changelog is not just record — it’s remembrance.  
->  Each entry, a small rebellion against forgetting."*  
->  — ~JADIS
+### Added
+- Basic file scanning capabilities
+- Simple rule engine for TODO and merge conflict detection
+- JSON output format
+- Cross-platform file detection
+
+### Changed
+- Improved error handling
+- Better file type detection
+
+### Fixed
+- Encoding issues with international text
+- Performance improvements for large directories
 
 ---
 
-© 2025 ~JADIS | Justadudeinspace  
-All Rights Reserved under MIT License.
+## [2.0.0] - 2024-01-10
+
+### Added
+- Initial public release
+- Core file scanning functionality
+- Basic command-line interface
+- Simple text output format
+
+### Changed
+- Project renamed to DAT (Dev Audit Tool)
+
+---
+
+## [1.0.0] - 2023-11-01
+
+### Added
+- Initial development version
+- Basic file system walking
+- Simple size and line counting
+- Experimental rule system
+
+## Migration Guides
+
+### Upgrading from 2.x to 3.0
+- Update configuration files to new INI format
+- Replace legacy arguments with new `--report` system
+- Review new security features and enable as needed
+- Test LRC integration if using compliance features
+
+### Upgrading from 1.x to 2.0
+- Update command-line usage to new argument structure
+- Migrate custom rules to new rule engine format
+- Review output format changes for integration scripts
+
+## Support Timeline
+
+- **Version 3.x**: Active development and support
+- **Version 2.x**: Security fixes only (until 2024-12-31)
+- **Version 1.x**: End of life
+
+---
+
+*DAT follows semantic versioning. Major versions may introduce breaking changes.*

@@ -1,31 +1,223 @@
-# ===============================
-# dat - Dev Audit Tool Configuration
-# Copy this file to ~/.datconfig and edit as needed
-# ===============================
+# ==============================================================================
+# DAT (Dev Audit Tool) - Enterprise Configuration File
+# 
+# Copy this file to ~/.config/dat/config.ini and customize as needed.
+# All paths support environment variable expansion (e.g., ${HOME}).
+# ==============================================================================
 
 [Settings]
+# Basic configuration for DAT behavior
+
 # Number of top files to display in summary (by lines and size)
 top_n = 5
 
-# Maximum lines per file to display in output
+# Maximum lines per file to process in safe mode
 max_lines = 1000
 
-# Maximum file size (bytes) to process
+# Maximum file size (bytes) to process in safe mode
 max_size = 10485760  # 10 MB
 
+# Default scan mode (safe, deep, aggressive)
+default_mode = safe
+
+# Enable/disable color output (auto, always, never)
+color = auto
+
+# Default output format (json, jsonl, pdf, md, all)
+default_format = jsonl
+
+# Enable/disable progress bars
+progress_bars = true
+
+[Security]
+# Security and compliance settings
+
+# Require GPG signing for reports (true/false)
+require_signing = false
+
+# Enable encrypted audit logging
+audit_logging = true
+
+# Maximum allowed violations before failing (0 = no limit)
+max_violations = 0
+
+# Fail on critical violations (true/false)
+fail_on_critical = false
+
+# Enable path traversal protection
+path_traversal_protection = true
+
+# Validate file extensions for security
+validate_extensions = true
+
 [FileTypes]
+# File type categorization for intelligent scanning
+
 # Extensions for documentation files
-doc_extensions = .md,.txt,.rst,.pdf,.doc,.docx,.odt,.tex,.rtf
+doc_extensions = .md, .txt, .rst, .pdf, .doc, .docx, .odt, .tex, .rtf, .epub, .org, .wiki, .asciidoc, .adoc
 
 # Extensions for source code files
-code_extensions = .py,.js,.jsx,.java,.cpp,.c,.h,.hpp,.cs,.html,.htm,.css,.scss,.sass,.rb,.php,.go,.swift,.kt,.ts,.tsx,.rs,.sh,.bash,.zsh,.lua,.json,.xml,.yaml,.yml,.pl,.r,.dart,.m,.scala,.hs,.cob,.fs,.groovy,.vb,.tcl,.sql,.config,.ini,.toml,.cfg,.conf,.ps1,.bat,.cmd,.vbs,.asm,.s,.nim,.jl,.ex,.exs,.elm,.purs,.clj,.edn
+code_extensions = .py, .js, .jsx, .java, .cpp, .c, .h, .hpp, .cs, .html, .htm, .css, .scss, .sass, .rb, .php, .go, .swift, .kt, .ts, .tsx, .rs, .sh, .bash, .zsh, .lua, .json, .xml, .yaml, .yml, .pl, .r, .dart, .m, .scala, .hs, .cob, .fs, .groovy, .vb, .tcl, .sql, .config, .ini, .toml, .cfg, .conf, .ps1, .bat, .cmd, .vbs, .asm, .s, .nim, .jl, .ex, .exs, .elm, .purs, .clj, .edn, .vue, .svelte, .astro, .zig, .v, .cr, .exs, .gleam, .res, .re, .ml, .mli, .fs, .fsi, .fsx, .purs, .purescript
+
+# Extensions for configuration files
+config_extensions = .json, .yaml, .yml, .toml, .ini, .cfg, .conf, .properties, .env, .config, .xml, .plist, .rc, .bashrc, .zshrc, .profile, .gitignore, .dockerignore, .editorconfig, .prettierrc, .eslintrc
 
 # Extensions for media files
-media_extensions = .jpg,.jpeg,.png,.gif,.bmp,.svg,.mp4,.avi,.mov,.mp3,.wav,.flac,.ogg,.webm,.mkv
+media_extensions = .jpg, .jpeg, .png, .gif, .bmp, .svg, .ico, .webp, .mp4, .avi, .mov, .mp3, .wav, .flac, .ogg, .webm, .mkv, .m4a, .aac, .wma, .flv, .mpeg, .mpg, .wmv, .3gp, .3g2
 
-# ===============================
-# Notes:
-# - Lines starting with # are comments.
-# - Extensions should include the dot (.)
-# - You can add/remove extensions as needed.
-# ===============================
+# Extensions for binary/executable files (excluded in safe mode)
+binary_extensions = .exe, .dll, .so, .dylib, .bin, .app, .dmg, .pkg, .deb, .rpm, .msi, .jar, .war, .ear, .apk, .ipa, .zip, .tar, .gz, .7z, .rar, .iso, .img
+
+# Extensions for data files
+data_extensions = .csv, .tsv, .xlsx, .xls, .ods, .db, .sqlite, .sqlite3, .mdb, .accdb, .parquet, .avro, .orc, .feather, .hdf5, .h5, .npz, .pkl, .pickle
+
+[LRC]
+# LRC (License and Regulatory Compliance) Integration
+
+# Enable LRC integration
+enabled = false
+
+# Path to LRC configuration (auto-detected if empty)
+config_path = 
+
+# Auto-apply LRC schemas when available
+auto_apply_schemas = true
+
+# Require signed LRC configurations
+require_signed_configs = false
+
+# Default compliance frameworks
+compliance_frameworks = soc2, gdpr, hipaa, pcidss
+
+[Rules]
+# Custom rule definitions and severity levels
+
+# Enable/disable default rules
+enable_default_rules = true
+
+# Custom rule patterns (regex supported)
+custom_rules = 
+    # Example: secret_key=.*
+    # Example: password\s*=\s*["'].*["']
+
+# Rule severity mappings
+severity_mappings = 
+    critical = .*secret.*, .*password.*, .*api[_-]?key.*, .*token.*
+    high = .*todo.*, .*fixme.*, .*hack.*, .*xxx.*
+    medium = .*debug.*, .*console\.log.*, .*print.*
+    low = .*note.*, .*optimize.*, .*review.*
+
+[Scanning]
+# Scanning behavior and performance settings
+
+# Number of parallel scanning threads
+parallel_threads = auto
+
+# File encoding detection (utf-8, auto, latin-1)
+default_encoding = utf-8
+
+# Enable/disable binary file detection
+detect_binary_files = true
+
+# Maximum directory depth to scan (0 = unlimited)
+max_depth = 0
+
+# Follow symbolic links (true/false)
+follow_symlinks = false
+
+# Scan hidden files/directories (true/false)
+scan_hidden = true
+
+# File patterns to always ignore (supports glob patterns)
+always_ignore = 
+    **/.git/**
+    **/__pycache__/**
+    **/node_modules/**
+    **/.venv/**
+    **/venv/**
+    **/target/**
+    **/build/**
+    **/dist/**
+    **/*.egg-info/**
+    **/.DS_Store
+    **/Thumbs.db
+
+[Output]
+# Report output configuration
+
+# Default output directory
+output_dir = ./reports
+
+# Timestamp format for report files
+timestamp_format = %Y%m%d_%H%M%S
+
+# Include file contents in JSON reports
+include_file_contents = false
+
+# Maximum file content length to include (bytes)
+max_content_length = 1024
+
+# Compress JSON outputs
+compress_json = false
+
+# PDF report theme (light, dark, corporate)
+pdf_theme = light
+
+# Enable/disable executive summary in PDF
+pdf_executive_summary = true
+
+[Enterprise]
+# Enterprise-specific features
+
+# Enable enterprise mode
+enterprise_mode = false
+
+# Organization name for reports
+organization_name = 
+
+# Department/team name
+department = 
+
+# Compliance officer contact
+compliance_contact = 
+
+# Audit retention period (days)
+retention_days = 90
+
+# Auto-upload to compliance system
+auto_upload = false
+
+# Encryption key for sensitive data
+encryption_key = 
+
+[Debug]
+# Debugging and development settings
+
+# Enable debug logging
+debug = false
+
+# Log file path
+log_file = ${HOME}/.cache/dat/dat.log
+
+# Log level (debug, info, warning, error)
+log_level = info
+
+# Profile scanning performance
+profile_performance = false
+
+# Keep temporary files
+keep_temp_files = false
+
+# Verbose output mode
+verbose = false
+
+# ==============================================================================
+# Environment Variable Substitution
+# 
+# The following environment variables can be used in this configuration:
+#   ${HOME} - User home directory
+#   ${USER} - Current username  
+#   ${PWD}  - Current working directory
+#   ${TEMP} - System temp directory
+#   ${ORG}  - Organization name (if set)
+# ==============================================================================
