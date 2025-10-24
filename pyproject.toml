@@ -4,23 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dat"
-version = "3.0.0-alpha.1"
+version = "3.0.0a1"
 description = "Dev Audit Tool"
-authors = [{ name = "~JADIS" }]
-license = { file = "LICENSE" }
+authors = [{name = "~JADIS"}]
+license = {file = "LICENSE"}
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-  "colorama>=0.4.6,<0.5.0",
   "python-magic>=0.4.27,<1.0",
   "reportlab>=4.0.8,<5.0",
-  "Pillow>=11.0.0,<12.0",
+  "Pillow>=11.3.0,<12.0",
   "rich>=13.7.0,<14.0",
   "cryptography>=42.0.0,<43.0",
 ]
 
 [project.optional-dependencies]
 dev = [
+<<<<<<< HEAD
   "black>=24.3.0,<25.0",
   "isort>=5.13.0,<6.0",
   "mypy>=1.10.0,<2.0",
@@ -56,3 +56,6 @@ ignore_missing_imports = true
 [tool.coverage.run]
 branch = true
 source = ["dat"]
+
+[tool.tox]
+legacy_tox_ini = "tox.ini"

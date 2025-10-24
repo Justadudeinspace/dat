@@ -1,110 +1,415 @@
 # Dev Audit Tool (DAT) v3.0.0-alpha.1
 
-![DAT logo](docs/assets/dat-logo-green.png)
+![DAT Logo](docs/assets/dat-logo-green.png)
 
-The Dev Audit Tool (DAT) is an enterprise-focused auditing engine that inspects source repositories,
-applies policy rules, and emits portable reports. Version **v3.0.0-alpha.1** introduces a modular
-`src/dat` layout, LRC schema ingestion, and signed JSON/Markdown/PDF outputs designed for secure
-workflows on Linux, macOS, and Windows.
+**Enterprise-Grade Source Code Auditing and Compliance Scanning**
+
+The Dev Audit Tool (DAT) is an enterprise-focused auditing engine that performs comprehensive security, compliance, and code quality analysis of source repositories. Version **v3.0.0-alpha.1** introduces a modern modular architecture with advanced features for secure development workflows across Linux, macOS, and Windows.
+
+## 🚀 Key Features
+
+- **Modular Architecture** - Clean `src/dat` layout with dedicated packages for scanning, reporting, integration, and policy enforcement
+- **High-Performance Scanning** - Asynchronous scanning engine optimized for large codebases with configurable safe/deep modes
+- **Enterprise Integration** - Native LRC (License and Regulatory Compliance) schema ingestion for policy-as-code
+- **Comprehensive Reporting** - Standardized JSONL, JSON, Markdown, and PDF outputs with cryptographic fingerprints
+- **Security-First Design** - GPG artifact signing with automatic SHA256 fallbacks and encrypted audit logging
+- **Developer Experience** - Rich interactive CLI with color-coded outputs, progress tracking, and intuitive flag sets
+
+## 📊 Architecture Overview
 
 ```mermaid
-graph LR
-    A[Repository] --> B[Scanner]
-    B --> C[Rules]
-    C --> D[Reports]
-    D --> E[GPG Signing]
-    C --> F[LRC Integration]
+graph TB
+    subgraph Inputs
+        A[Source Repository]
+        B[LRC Configuration]
+        C[CLI Arguments]
+    end
+    
+    subgraph Processing
+        D[Async Scanner]
+        E[Policy Engine]
+        F[Rule Evaluation]
+    end
+    
+    subgraph Outputs
+        G[JSON/JSONL Reports]
+        H[PDF Reports]
+        I[Markdown Reports]
+        J[LRC Audit Files]
+    end
+    
+    subgraph Security
+        K[GPG Signing]
+        L[Encrypted Audit Log]
+        M[Digital Fingerprints]
+    end
+    
+    A --> D
+    B --> E
+    C --> D
+    C --> E
+    
+    D --> F
+    E --> F
+    F --> G
+    F --> H
+    F --> I
+    F --> J
+    
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+    
+    K --> L
+    G --> M
 ```
 
-## Quickstart
+## 🏁 Quick Start
+
+Installation
 
 ```bash
-# Clone and install in editable mode
-pip install -e .[dev]
+# Clone and install with development dependencies
+git clone <repository>
+cd dat
+pip install -e .
 
-# Or bootstrap system dependencies
+# Or use the automated bootstrap script
 chmod +x install_deps.sh
 ./install_deps.sh
+
+# Verify installation
+dat --version
 ```
 
-Once installed, invoke the CLI from any repository root:
+Basic Usage
 
 ```bash
-# Safe scan with JSON output
+# Safe scan with JSON report (recommended for development)
 dat . --safe --report audit.json
 
-# Deep scan with PDF and signing
+# Comprehensive security audit with PDF output
 dat . --deep --output audit.pdf --sign
 
-# Enrich results using .lrc-build.json
-dat . --from-lrc --report audit.json --output audit.pdf
+# Enterprise scan with LRC integration
+dat . --from-lrc --report audit.json --output audit.pdf --verbose
 ```
 
-## CLI Overview
+## 🎯 CLI Reference
+```
+## Core Commands
 
-| Flag | Description |
-| ---- | ----------- |
-| `PATH` | Repository root to audit (defaults to `.`). |
-| `--from-lrc` | Consume `.lrc-build.json` metadata and emit `.lrc-audit.json`. |
-| `-i/--ignore` | Provide glob patterns to exclude (repeatable). |
-| `--max-lines` | Maximum lines per file when `--safe` (default: 1000). |
-| `--max-size` | Maximum file size in bytes when `--safe` (default: 10 MiB). |
-| `--safe` / `--no-safe` | Toggle safe scanning mode (safe by default). |
-| `--deep` | Perform an aggressive scan without safe limits. |
-| `--report` | Write a JSON (`.json`) or Markdown (`.md`) report. |
-| `-o/--output` | Write a PDF report. |
-| `--sign` | Sign generated reports with GPG (creates `.asc` files). |
-| `--diff` | Compare the current scan against a previous JSON report. |
-| `-v/--verbose` | Emit progress information. |
-| `--version` | Display DAT version and exit. |
+### Command Description
+dat [PATH] Scan repository at PATH (default: current directory)
+dat --version Display DAT version and build information
+dat --help Show comprehensive help message
 
-Safe mode skips binary files, large artefacts, and long files to keep runs fast. Combine `--deep`
-with `--no-safe` for exhaustive inspections.
+## Scanning Modes
 
-## LRC Integration
+### Flag Description Default
+--safe, -s Enable safe scanning (skip large/binary files) true
+--no-safe Disable safe scanning limitations false
+--deep, -p Perform deep scan including binary analysis false
+--max-lines N Maximum lines per file in safe mode 1000
+--max-size N Maximum file size in bytes in safe mode 10MB
 
-When `--from-lrc` is supplied, DAT merges shared defaults from
-`~/.config/lrc/dat_integration.json` with the repository-local `.lrc-build.json`. The resulting
-metadata is injected into report headers and stored in `.lrc-audit.json` alongside scan statistics,
-policy findings, and signing fingerprints when available.
+## File Management
 
-Minimal `.lrc-build.json` example:
+### Flag Description
+-i, --ignore PATTERN Exclude files matching glob pattern (repeatable)
+--ignore-file PATH Read ignore patterns from file
+
+## Output Formats
+
+### Flag Description Format
+-o, --output PATH Write report (auto-detects format from extension) JSON/JSONL/PDF
+--report PATH Alias for --output JSON/JSONL/PDF
+--jsonl PATH Write JSON Lines report JSONL
+--pdf PATH Write PDF report PDF
+
+## Enterprise Features
+
+### Flag Description
+--from-lrc [PATH] Enable LRC integration (auto-detects config)
+--sign Sign artifacts with GPG
+--no-sign Disable artifact signing
+--interactive Enable interactive confirmation prompts
+
+## Analysis & Comparison
+
+### Flag Description
+--diff BASELINE Compare against previous scan report
+-v, --verbose Enable detailed progress output
+--debug Enable debug-level logging
+```
+## 🔧 LRC Integration
+
+DAT provides seamless integration with LRC (License and Regulatory Compliance) build pipelines for enterprise environments.
+
+### Basic Configuration
+
+Create LRC configuration:
+
+```bash
+mkdir -p ~/.config/lrc
+cat > ~/.config/lrc/dat_integration.json << 'EOF'
+{
+  "schemas": [
+    {
+      "repos": ["my-project", "enterprise-.*"],
+      "owner": "security-team@company.com",
+      "compliance": ["soc2", "gdpr"],
+      "rules": [
+        {
+          "id": "security.no-secrets",
+          "patterns": ["API_KEY", "SECRET_", "PASSWORD="],
+          "severity": "critical",
+          "description": "Hardcoded credentials detected"
+        }
+      ]
+    }
+  ]
+}
+EOF
+```
+
+Repository Metadata
+
+Add build context to your repository:
 
 ```json
+// .lrc-build.json
 {
-  "project": "sample",
-  "version": "1.2.3",
+  "project": "production-service",
+  "version": "2.1.0",
+  "build_id": "build-20240525-001",
+  "commit_hash": "a1b2c3d4e5",
+  "branch": "main",
   "compiled_at": "2024-05-25T10:30:00Z"
 }
 ```
 
-## Output Formats
+Enterprise Scan
 
-* **JSON** – Deterministic, UTF-8 encoded payload suitable for ingestion or CI systems.
-* **Markdown** – Readable summary for pull requests or manual reviews.
-* **PDF** – Generated with ReportLab using DejaVu Sans Mono (Courier fallback) for consistent
-  rendering across platforms.
+```bash
+# Full enterprise workflow
+dat . --from-lrc --report audit.json --output compliance.pdf --sign --verbose
+```
 
-All report writers use atomic file replacement to avoid partial artefacts. When `--sign` is enabled,
-DAT attempts to run `gpg --detach-sign` for each artefact and places the ASCII-armoured signature
-next to the original file.
+## 📊 Output Formats
 
-## Troubleshooting
+JSON/JSONL Reports
 
-* Install the optional `python-magic` wheel on Windows to improve binary detection.
-* Use `--deep` for repos dominated by generated assets or minified bundles.
-* Set `DAT_FORCE_COLOR=1` to keep colour output when piping results.
+· Deterministic - Consistent output for CI/CD pipelines
+· Machine-readable - Structured data for automated processing
+· Comprehensive - Full scan metadata, violations, and file statistics
+· Fingerprinted - SHA256 hash for integrity verification
 
-## Documentation
+PDF Reports
 
-Additional guides live in the `docs/` directory:
+· Professional - Print-ready compliance documentation
+· Styled - Consistent typography with DejaVu Sans Mono/Courier fallbacks
+· Comprehensive - Executive summary and detailed findings
+· Brandable - Custom headers and metadata support
 
-* [Usage](docs/usage.md)
-* [LRC Integration](docs/integration-lrc.md)
-* [Output Formats](docs/output-formats.md)
-* [GPG Signing](docs/gpg-signing.md)
-* [CI/CD](docs/ci.md)
+Markdown Reports
 
-## License
+· Human-readable - Perfect for pull requests and code reviews
+· GitHub-friendly - Renders beautifully in GitHub/GitLab
+· Concise - Focused summary of critical findings
 
-DAT is distributed under the MIT License. See [LICENSE](LICENSE) for details.
+## 🔒 Security Features
+
+Artifact Signing
+
+```bash
+# Generate signed reports
+dat . --sign --report audit.json
+
+# Verify signatures
+gpg --verify audit.json.asc audit.json
+```
+
+Encrypted Audit Logging
+
+· Automatic - Every scan is logged to ~/.config/dat/auditlog.jsonl
+· Encrypted - Fernet encryption with auto-generated keys
+· Tamper-evident - Cryptographic integrity protection
+· Access-controlled - File permissions restrict access
+
+Digital Fingerprints
+
+· Repository fingerprint - Unique hash identifying the codebase state
+· Report fingerprint - Integrity verification for generated artifacts
+· Audit trail - Complete chain of custody for compliance
+
+## 🛠️ Advanced Usage
+
+CI/CD Integration
+
+```yaml
+# GitHub Actions example
+- name: Security Audit
+  run: |
+    dat . --from-lrc --report audit.json --diff baseline.json
+    if [ $? -eq 3 ]; then
+      echo "New violations detected - failing build"
+      exit 1
+    fi
+```
+
+Performance Optimization
+
+```bash
+# For very large repositories
+dat . --deep --max-size 52428800 --max-lines 5000 --batch-size 1000
+
+# Focus on specific file types
+dat . --include "*.py" --include "*.js" --include "*.yaml"
+
+# Exclude generated assets
+dat . --ignore "node_modules/" --ignore "dist/" --ignore "*.min.*"
+```
+
+Custom Rule Development
+
+```json
+{
+  "rules": [
+    {
+      "id": "custom.license-header",
+      "patterns": ["Copyright 2024", "MIT License"],
+      "severity": "info",
+      "description": "License header check",
+      "category": "compliance"
+    }
+  ]
+}
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+Binary Detection Problems
+
+```bash
+# Install libmagic for improved file type detection
+sudo apt-get install libmagic1  # Ubuntu/Debian
+brew install libmagic           # macOS
+
+# Use fallback mode
+dat . --no-magic
+```
+
+GPG Signing Failures
+
+```bash
+# Check GPG installation and configuration
+gpg --list-secret-keys
+export DAT_SIGNING_KEY=YOUR_KEY_ID
+
+# Disable signing if not required
+dat . --no-sign --report audit.json
+```
+
+Performance Issues
+
+```bash
+# Reduce parallelism for resource-constrained environments
+dat . --parallel-scans 2 --batch-size 500
+
+# Limit memory usage
+dat . --max-memory 2048
+```
+
+Debug Mode
+
+```bash
+# Enable detailed debugging
+DAT_DEBUG=1 dat . --verbose --debug
+
+# Profile performance
+dat . --profile --report profile.json
+```
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the docs/ directory:
+
+· Usage Guide - Complete CLI reference and examples
+· LRC Integration - Enterprise policy management
+· Output Formats - Report specifications and examples
+· GPG Signing - Cryptographic signing guide
+· CI/CD Integration - Pipeline examples and best practices
+· Rule Development - Custom rule creation guide
+
+## 🧪 Development
+
+Testing
+
+```bash
+# Run test suite
+pytest
+
+# With coverage reporting
+pytest --cov=dat --cov-report=html
+
+# Run specific test categories
+pytest tests/test_scanner.py -v
+pytest tests/test_integration.py -v
+```
+
+Code Quality
+
+```bash
+# Type checking
+mypy src/dat
+
+# Code formatting
+black src/dat tests
+
+# Import sorting
+isort src/dat tests
+
+# Linting
+flake8 src/dat tests
+pylint src/dat
+```
+
+Building and Distribution
+
+```bash
+# Build package
+python -m build
+
+# Run tox matrix
+tox
+
+# Create development environment
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our Contributing Guide for details on:
+
+· Code style and standards
+· Testing requirements
+· Pull request process
+· Issue reporting
+
+## 📄 Licensing
+
+DAT is distributed under the MIT License. See [LICENSE](./LICENSE) for complete details.
+
+## 🆘 Support
+
+· Documentation: Full documentation available in docs/ directory
+· Issues: Report bugs and feature requests via GitHub Issues
+· Discussions: Join community discussions for help and ideas
+
+---
