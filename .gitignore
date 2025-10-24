@@ -36,3 +36,4 @@ pip-wheel-metadata/
 # Generated artifacts
 coverage/
 htmlcov/
+trust
