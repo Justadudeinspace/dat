@@ -15,12 +15,11 @@ dependencies = [
   "reportlab>=4.0.8,<5.0",
   "Pillow>=11.3.0,<12.0",
   "rich>=13.7.0,<14.0",
-  "cryptography>=42.0.0,<43.0",
+  "cryptography>=44.0.1,<45.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-<<<<<<< HEAD
   "black>=24.3.0,<25.0",
   "isort>=5.13.0,<6.0",
   "mypy>=1.10.0,<2.0",
