@@ -1,6 +1,6 @@
-# Dev Audit Tool (DAT) v3.0.0-alpha.1
-
 ![DAT Logo](docs/assets/dat-logo-green.png)
+
+# Dev Audit Tool [DAT]
 
 **Enterprise-Grade Source Code Auditing and Compliance Scanning**
 
