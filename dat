@@ -714,6 +714,39 @@ def process_single_file(input_path: str, output_path: Path, max_lines=1000):
         print(f"{ERROR_COLOR}Error processing file: {e}{RESET}", file=sys.stderr)
         sys.exit(1)
 
+# ==================== LRC EXPORT FUNCTIONALITY ====================
+
+def export_to_lrc(output_path: Path, root_path: Path, ignore_patterns: set):
+    """Export directory structure to LRC schema using dat2lrc."""
+    try:
+        # Import the dat2lrc functionality
+        sys.path.insert(0, str(Path(__file__).parent))
+        from tools.dat2lrc import export_folder, parse_ignore_patterns
+        
+        # Convert ignore patterns to the format dat2lrc expects
+        ignore_arg = " ".join(ignore_patterns - {".pyc", "__pycache__", ".git", ".DS_Store", ".pytest_cache", "node_modules", ".venv", "venv"})
+        
+        print(f"[LRC] Exporting {root_path} to {output_path}")
+        print(f"[LRC] Ignore patterns: {ignore_arg}")
+        
+        # Call dat2lrc's export function
+        export_folder(
+            root=root_path,
+            out_path=output_path,
+            ignores=parse_ignore_patterns(ignore_arg),
+            dry_run=False,
+            force=True,
+            verbose=True
+        )
+        
+    except ImportError as e:
+        print(f"{ERROR_COLOR}[ERROR] LRC export requires dat2lrc module: {e}{RESET}")
+        print(f"{ERROR_COLOR}[ERROR] Make sure tools/dat2lrc.py exists in the dat directory{RESET}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"{ERROR_COLOR}[ERROR] LRC export failed: {e}{RESET}")
+        sys.exit(1)
+
 # ==================== DEPENDENCY CHECK ====================
 
 def check_dependencies():
@@ -746,6 +779,7 @@ Platform: {platform.system()} {platform.release()}
 Examples:
   {SCRIPT_NAME}                    # Audit current directory
   {SCRIPT_NAME} /path/to/project   # Audit specific directory
+  {SCRIPT_NAME} lrc -o schema.lrc  # Export to LRC schema
   {SCRIPT_NAME} -c -f              # Code files in current folder only
   {SCRIPT_NAME} -e py,js,html      # Custom file extensions
   {SCRIPT_NAME} -o audit.txt       # Output to text file
@@ -770,46 +804,67 @@ Configuration:
 """
     )
 
-    parser.add_argument('path', nargs='?', default='.', help='Path to audit or single file')
-    parser.add_argument('-a', '--all', action='store_true', help='Include hidden files')
-    parser.add_argument('-d', '--docs', action='store_true', help='Documentation files only')
-    parser.add_argument('-c', '--code', action='store_true', help='Code files only')
-    parser.add_argument('-m', '--media', action='store_true', help='Media files only')
-    parser.add_argument('-e', '--ext', type=str, help='Comma-separated custom extensions')
-    parser.add_argument('-f', '--folder', action='store_true', help='Current folder only (no recursion)')
-    parser.add_argument('-o', '--output', type=str, help='Write output to file (supports .txt, .md, .pdf)')
-    parser.add_argument('-s', '--single', '--single-page', dest='single_page', metavar='FILE', help='Print a single file (with or without extension) to terminal')
-    parser.add_argument('-i', '-I', '--ignore', nargs='*', default=[], help='Ignore patterns (space/comma separated): e.g. -i .pyc __pycache__ .git,node_modules')
-    parser.add_argument('--max-lines', type=int, default=1000, help='Max lines per file (default: 1000)')
-    parser.add_argument('--max-size', type=int, default=10*1024*1024, help='Max file size in bytes (default: 10MB)')
-    parser.add_argument('--top-n', type=int, default=5, help='Number of top files to show (default: 5)')
-    parser.add_argument('--no-bootstrap', action='store_true', help='Skip auto-installation')
-    parser.add_argument('--version', action='store_true', help='Show version and platform info')
+    # Create subparsers for different modes
+    subparsers = parser.add_subparsers(dest='mode', help='Operation mode', metavar='MODE')
+    
+    # Main audit mode (default)
+    audit_parser = subparsers.add_parser('audit', help='File audit mode (default)')
+    audit_parser.add_argument('path', nargs='?', default='.', help='Path to audit or single file')
+    audit_parser.add_argument('-a', '--all', action='store_true', help='Include hidden files')
+    audit_parser.add_argument('-d', '--docs', action='store_true', help='Documentation files only')
+    audit_parser.add_argument('-c', '--code', action='store_true', help='Code files only')
+    audit_parser.add_argument('-m', '--media', action='store_true', help='Media files only')
+    audit_parser.add_argument('-e', '--ext', type=str, help='Comma-separated custom extensions')
+    audit_parser.add_argument('-f', '--folder', action='store_true', help='Current folder only (no recursion)')
+    audit_parser.add_argument('-o', '--output', type=str, help='Write output to file (supports .txt, .md, .pdf)')
+    audit_parser.add_argument('-s', '--single', '--single-page', dest='single_page', metavar='FILE', help='Print a single file (with or without extension) to terminal')
+    audit_parser.add_argument('-i', '-I', '--ignore', nargs='*', default=[], help='Ignore patterns (space/comma separated): e.g. -i .pyc __pycache__ .git,node_modules')
+    audit_parser.add_argument('--max-lines', type=int, default=1000, help='Max lines per file (default: 1000)')
+    audit_parser.add_argument('--max-size', type=int, default=10*1024*1024, help='Max file size in bytes (default: 10MB)')
+    audit_parser.add_argument('--top-n', type=int, default=5, help='Number of top files to show (default: 5)')
+    audit_parser.add_argument('--no-bootstrap', action='store_true', help='Skip auto-installation')
+    audit_parser.add_argument('--version', action='store_true', help='Show version and platform info')
+
+    # LRC export mode
+    lrc_parser = subparsers.add_parser('lrc', help='Export directory to LRC schema')
+    lrc_parser.add_argument('path', nargs='?', default='.', help='Path to export (default: current directory)')
+    lrc_parser.add_argument('-o', '--output', required=True, help='Output LRC schema file')
+    lrc_parser.add_argument('-i', '--ignore', nargs='*', default=[], help='Ignore patterns for LRC export')
+    lrc_parser.add_argument('--no-bootstrap', action='store_true', help='Skip auto-installation')
 
     args = parser.parse_args()
 
+    # If no mode specified, default to audit with backward compatibility
+    if args.mode is None:
+        # Check if this looks like an LRC export command
+        if hasattr(args, 'output') and args.output and args.output.endswith('.lrc'):
+            args.mode = 'lrc'
+        else:
+            args.mode = 'audit'
+
+    # Bootstrap logic
     if not args.no_bootstrap and shutil.which('dat') is None:
         bootstrap()
 
     # Check dependencies
     check_dependencies()
 
-    # Build ignore patterns (defaults + user provided), accept commas or spaces
+    # Build ignore patterns
     import re as _re
     _user_ign = set()
-    for tok in (args.ignore or []):
+    for tok in (getattr(args, 'ignore', []) or []):
         for p in _re.split(r'[,\s]+', tok):
             p = p.strip()
             if p:
                 _user_ign.add(p)
 
     ignore_patterns = DEFAULT_IGNORES.union(_user_ign)
-    if ignore_patterns:
+    if ignore_patterns and args.mode != 'lrc':  # Only show for non-LRC modes to avoid duplication
         print(f"[INFO] Ignoring patterns: {', '.join(sorted(ignore_patterns))}")
 
-    top_n_value = args.top_n if args.top_n is not None else TOP_N
+    top_n_value = getattr(args, 'top_n', 5) if hasattr(args, 'top_n') else 5
 
-    if args.version:
+    if getattr(args, 'version', False):
         print(f"dat - Dev Audit Tool v2.0.0")
         print(f"Platform: {platform.system()} {platform.release()}")
         print(f"Environment: {'Termux' if IS_TERMUX else 'Android Linux' if IS_ANDROID_LINUX else 'Standard'}")
@@ -819,99 +874,112 @@ Configuration:
             print(f"PDF support: Available")
         else:
             print(f"PDF support: Install reportlab for PDF output")
+        print(f"LRC export: Available")
         print(f"Install path: {INSTALL_PATH}")
         if IS_WINDOWS:
             print("[NOTE] Windows PATH changes require terminal restart.")
         sys.exit(0)
 
-    # Handle single file printing (-s flag)
-    if args.single_page:
-        print_single_file(args.single_page, args.max_lines)
-        return
+    # Handle different modes
+    if args.mode == 'lrc':
+        # LRC export mode
+        root_path = Path(getattr(args, 'path', '.')).resolve()
+        output_path = Path(args.output).resolve()
+        
+        if ignore_patterns:
+            print(f"[LRC] Ignore patterns: {', '.join(sorted(ignore_patterns))}")
+            
+        export_to_lrc(output_path, root_path, ignore_patterns)
+        
+    elif args.mode == 'audit':
+        # Handle single file printing (-s flag)
+        if getattr(args, 'single_page', None):
+            print_single_file(args.single_page, getattr(args, 'max_lines', 1000))
+            return
 
-    extensions = parse_extensions(args.ext) if args.ext else None
+        extensions = parse_extensions(args.ext) if getattr(args, 'ext', None) else None
 
-    # Check if we're processing a single file or directory
-    is_single_file = False
-    input_path = Path(args.path)
+        # Check if we're processing a single file or directory
+        is_single_file = False
+        input_path = Path(getattr(args, 'path', '.'))
 
-    # Check if it's a single file (exists as file)
-    if input_path.is_file():
-        is_single_file = True
-    # Check if it might be a single file without extension
-    elif not input_path.exists():
+        # Check if it's a single file (exists as file)
+        if input_path.is_file():
+            is_single_file = True
+        # Check if it might be a single file without extension
+        elif not input_path.exists():
+            try:
+                # Try to resolve it as a single file
+                resolved_path = resolve_target_path(getattr(args, 'path', '.'))
+                if resolved_path.is_file():
+                    is_single_file = True
+                    input_path = resolved_path
+            except FileNotFoundError:
+                # If we can't resolve it, treat as directory (will show error later)
+                pass
+
+        # If output is specified and we're processing a single file
+        if getattr(args, 'output', None) and is_single_file:
+            output_path = Path(args.output)
+            process_single_file(str(input_path), output_path, getattr(args, 'max_lines', 1000))
+            return
+
+        # If output is specified and we're processing a directory
+        elif getattr(args, 'output', None):
+            output_path = Path(args.output)
+
+            # Directory processing with PDF output
+            if output_path.suffix.lower() == '.pdf':
+                export_to_pdf(
+                    output_path=output_path,
+                    paths=[getattr(args, 'path', '.')],
+                    include_hidden=getattr(args, 'all', False),
+                    doc_only=getattr(args, 'docs', False),
+                    code_only=getattr(args, 'code', False),
+                    media_only=getattr(args, 'media', False),
+                    extensions=extensions,
+                    current_only=getattr(args, 'folder', False),
+                    max_lines=getattr(args, 'max_lines', 1000),
+                    top_n=top_n_value,
+                    ignore_patterns=ignore_patterns
+                )
+                return
+
+            # Directory processing with text output
+            else:
+                try:
+                    out_file = open(args.output, 'w', encoding='utf-8')
+                except IOError as e:
+                    print(f"{ERROR_COLOR}Error opening output file: {e}{RESET}", file=sys.stderr)
+                    sys.exit(1)
+        else:
+            out_file = None
+
         try:
-            # Try to resolve it as a single file
-            resolved_path = resolve_target_path(args.path)
-            if resolved_path.is_file():
-                is_single_file = True
-                input_path = resolved_path
-        except FileNotFoundError:
-            # If we can't resolve it, treat as directory (will show error later)
-            pass
-
-    # If output is specified and we're processing a single file
-    if args.output and is_single_file:
-        output_path = Path(args.output)
-        process_single_file(str(input_path), output_path, args.max_lines)
-        return
-
-    # If output is specified and we're processing a directory
-    elif args.output:
-        output_path = Path(args.output)
-
-        # Directory processing with PDF output
-        if output_path.suffix.lower() == '.pdf':
-            export_to_pdf(
-                output_path=output_path,
-                paths=[args.path],
-                include_hidden=args.all,
-                doc_only=args.docs,
-                code_only=args.code,
-                media_only=args.media,
+            cat_all(
+                root=getattr(args, 'path', '.'),
+                include_hidden=getattr(args, 'all', False),
+                doc_only=getattr(args, 'docs', False),
+                code_only=getattr(args, 'code', False),
+                media_only=getattr(args, 'media', False),
                 extensions=extensions,
-                current_only=args.folder,
-                max_lines=args.max_lines,
+                out=out_file,
+                current_only=getattr(args, 'folder', False),
+                max_file_size=getattr(args, 'max_size', 10*1024*1024),
+                max_lines=getattr(args, 'max_lines', 1000),
                 top_n=top_n_value,
                 ignore_patterns=ignore_patterns
             )
-            return
+        except KeyboardInterrupt:
+            print(f"\n{ERROR_COLOR}Audit interrupted by user{RESET}")
+        finally:
+            if out_file:
+                out_file.close()
 
-        # Directory processing with text output
+        if STATS['total_files'] > 0 or STATS['errors'] > 0 or STATS['large_files'] > 0:
+            print_summary(top_n=top_n_value)
         else:
-            try:
-                out_file = open(args.output, 'w', encoding='utf-8')
-            except IOError as e:
-                print(f"{ERROR_COLOR}Error opening output file: {e}{RESET}", file=sys.stderr)
-                sys.exit(1)
-    else:
-        out_file = None
-
-    try:
-        cat_all(
-            root=args.path,
-            include_hidden=args.all,
-            doc_only=args.docs,
-            code_only=args.code,
-            media_only=args.media,
-            extensions=extensions,
-            out=out_file,
-            current_only=args.folder,
-            max_file_size=args.max_size,
-            max_lines=args.max_lines,
-            top_n=top_n_value,
-            ignore_patterns=ignore_patterns
-        )
-    except KeyboardInterrupt:
-        print(f"\n{ERROR_COLOR}Audit interrupted by user{RESET}")
-    finally:
-        if out_file:
-            out_file.close()
-
-    if STATS['total_files'] > 0 or STATS['errors'] > 0 or STATS['large_files'] > 0:
-        print_summary(top_n=top_n_value)
-    else:
-        print(f"{ERROR_COLOR}No files found matching the specified criteria{RESET}")
+            print(f"{ERROR_COLOR}No files found matching the specified criteria{RESET}")
 
 if __name__ == "__main__":
     main()
