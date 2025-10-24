@@ -4,7 +4,7 @@
 
 **Enterprise-Grade Source Code Auditing and Compliance Scanning**
 
-The Dev Audit Tool (DAT) is an enterprise-focused auditing engine that performs comprehensive security, compliance, and code quality analysis of source repositories. Version **v3.0.0-alpha.1** introduces a modern modular architecture with advanced features for secure development workflows across Linux, macOS, Windows, WSL2, and Termux.
+The Dev Audit Tool (DAT) is an enterprise-focused auditing engine that performs comprehensive security, compliance, and code quality analysis of source repositories. Version **v2.0.0-alpha.1** introduces a modern modular architecture with advanced features for secure development workflows across Linux, macOS, Windows, WSL2, and Termux.
 
 ## 🚀 Key Features
 
@@ -551,7 +551,7 @@ DAT is distributed under the MIT License. See [LICENSE](./LICENSE) for complete 
 
 ---
 
-DAT · Enterprise Security Scanning · v3.0.0-alpha.1
+DAT · Enterprise Security Scanning · v2.0.0-alpha.1
 Built with 🔒 security-first principles and 🤖 AI-assisted development
 
 ---
