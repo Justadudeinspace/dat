@@ -32,7 +32,7 @@ if [[ -f "requirements.txt" ]]; then
 else
     echo "[-] requirements.txt not found!"
     echo "[+] Installing dependencies directly..."
-    $PYTHON_CMD -m pip install python-magic configparser reportlab colorama Pillow PyPDF2
+    $PYTHON_CMD -m pip install python-magic reportlab Pillow rich cryptography
 fi
 
 # --- Detect OS / environment ---
@@ -150,11 +150,10 @@ import sys
 # Define required packages with their import names and pip names
 required_packages = [
     ('python-magic', 'magic'),
-    ('configparser', 'configparser'), 
     ('reportlab', 'reportlab'),
-    ('colorama', 'colorama'),
     ('Pillow', 'PIL'),
-    ('PyPDF2', 'PyPDF2')
+    ('rich', 'rich'),
+    ('cryptography', 'cryptography'),
 ]
 
 print('Checking required packages:')
