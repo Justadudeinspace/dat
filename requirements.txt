@@ -1,8 +1,5 @@
 python-magic>=0.4.27,<1.0
-configparser>=6.0.0,<7.0
 reportlab>=4.0.8,<5.0
 Pillow>=11.3.0,<12.0
-colorama>=0.4.2,<0.4.6
-PyPDF2>=2.0.0,<3.0.1
-# System package required:
-# fonts-dejavu-core → apt/pacman/dnf/pkg/brew install per platform
+rich>=13.7.0,<14.0
+cryptography>=42.0.0,<43.0
